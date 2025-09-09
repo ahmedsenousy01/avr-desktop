@@ -1,7 +1,6 @@
-import { ipcMain } from "electron";
-import path from "node:path";
 import fs from "node:fs/promises";
-import { app } from "electron";
+import path from "node:path";
+import { app, ipcMain } from "electron";
 
 const getCounterFilePath = (): string => {
   return path.join(app.getAppPath(), "counter.txt");

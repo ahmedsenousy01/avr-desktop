@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+
 import { api } from "@renderer/lib/api";
 
 export const Home: React.FC = () => {
@@ -26,10 +27,8 @@ export const Home: React.FC = () => {
       <div className="mx-auto max-w-5xl px-6 py-12">
         <header className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-sky-500/20 ring-1 ring-inset ring-sky-300/30 backdrop-blur" />
-            <span className="text-lg font-semibold tracking-tight">
-              Learning Electron
-            </span>
+            <div className="h-9 w-9 rounded-xl bg-sky-500/20 ring-1 ring-sky-300/30 backdrop-blur ring-inset" />
+            <span className="text-lg font-semibold tracking-tight">Learning Electron</span>
           </div>
           <a
             href="#"
@@ -41,21 +40,18 @@ export const Home: React.FC = () => {
 
         <section className="mt-16 grid grid-cols-1 items-center gap-10 md:grid-cols-2">
           <div>
-            <h1 className="text-4xl font-bold leading-tight tracking-tight sm:text-5xl">
+            <h1 className="text-4xl leading-tight font-bold tracking-tight sm:text-5xl">
               Build delightful desktop apps with
-              <span className="bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent">
-                {" "}
-                Electron
-              </span>
+              <span className="bg-gradient-to-r from-sky-400 to-cyan-300 bg-clip-text text-transparent"> Electron</span>
             </h1>
             <p className="mt-4 max-w-prose text-white/70">
-              Hot reloading, modern tooling, and a small example counter wired
-              to the main process. Styled with Tailwind CSS v4.
+              Hot reloading, modern tooling, and a small example counter wired to the main process. Styled with Tailwind
+              CSS v4.
             </p>
             <div className="mt-8 flex flex-wrap items-center gap-4">
               <button
                 onClick={increment}
-                className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-sky-950 shadow-lg shadow-sky-500/30 transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-sky-400 focus-visible:ring-offset-slate-950"
+                className="inline-flex items-center gap-2 rounded-xl bg-sky-500 px-4 py-2 text-sm font-semibold text-sky-950 shadow-lg shadow-sky-500/30 transition hover:brightness-110 focus:outline-none focus-visible:ring-2 focus-visible:ring-sky-400 focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
                 aria-label="Increment counter"
               >
                 <svg
@@ -71,9 +67,7 @@ export const Home: React.FC = () => {
               </button>
               <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm">
                 <span className="text-white/60">Count</span>
-                <span className="font-mono text-base tabular-nums">
-                  {count}
-                </span>
+                <span className="font-mono text-base tabular-nums">{count}</span>
               </div>
             </div>
           </div>
@@ -100,9 +94,7 @@ export const Home: React.FC = () => {
                   <p className="mt-1 text-2xl font-bold tracking-tight">
                     <span className="font-mono tabular-nums">{count}</span>
                   </p>
-                  <p className="mt-1 text-xs text-white/60">
-                    Backed by main process storage
-                  </p>
+                  <p className="mt-1 text-xs text-white/60">Backed by main process storage</p>
                 </div>
               </div>
             </div>

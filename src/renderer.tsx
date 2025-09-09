@@ -1,5 +1,7 @@
 import { createRoot } from "react-dom/client";
+
 import "@renderer/styles/globals.css";
+
 import { App } from "@renderer/App";
 
 const container = document.getElementById("root");
