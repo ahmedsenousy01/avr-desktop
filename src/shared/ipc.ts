@@ -1,4 +1,5 @@
 import type { AsteriskConfig } from "./types/asterisk";
+import type { PreflightItem, PreflightSeverity } from "./types/preflight";
 import type { ProviderId, Providers, ProvidersPartial } from "./types/providers";
 
 // Providers IPC channels
@@ -165,4 +166,49 @@ export interface AsteriskRenderConfigResponse {
 export type AsteriskApi = {
   validateConfig: (req: AsteriskValidateConfigRequest) => Promise<AsteriskValidateConfigResponse>;
   renderConfig: (req: AsteriskRenderConfigRequest) => Promise<AsteriskRenderConfigResponse>;
+};
+
+// Preflight IPC channels
+export const PreflightChannels = {
+  run: "preflight:run",
+  last: "preflight:last",
+} as const;
+
+export interface PreflightRunRequest {
+  /** Deployment id to run preflight for */
+  deploymentId: string;
+}
+
+export interface PreflightSummary {
+  total: number;
+  pass: number;
+  warn: number;
+  fail: number;
+  startedAt: number; // epoch ms
+  finishedAt: number; // epoch ms
+  durationMs: number;
+  overall: PreflightSeverity;
+}
+
+export interface PreflightResult {
+  items: PreflightItem[];
+  summary: PreflightSummary;
+}
+
+export interface PreflightRunResponse {
+  result: PreflightResult;
+}
+
+export interface PreflightLastRequest {
+  /** Deployment id to fetch last preflight results for */
+  deploymentId: string;
+}
+
+export interface PreflightLastResponse {
+  result: PreflightResult | null;
+}
+
+export type PreflightApi = {
+  run: (req: PreflightRunRequest) => Promise<PreflightRunResponse>;
+  last: (req: PreflightLastRequest) => Promise<PreflightLastResponse>;
 };

@@ -3,8 +3,16 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import type { PreflightResult } from "@shared/ipc";
 import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
-import { createDeployment, duplicateDeployment, updateDeployment } from "@main/services/deployments-store";
+import {
+  createDeployment,
+  duplicateDeployment,
+  getPreflightFilePathByDeploymentId,
+  readPreflightResultByDeploymentId,
+  updateDeployment,
+  writePreflightResultByDeploymentId,
+} from "@main/services/deployments-store";
 import { setWorkspaceRootForTesting } from "@main/services/workspace-root";
 
 function mkTempDir(): string {
@@ -101,5 +109,47 @@ describe("deployments-store", () => {
     for (const name of ["ari.conf", "pjsip.conf", "extensions.conf", "manager.conf", "queues.conf"]) {
       expect(fs.existsSync(path.join(dupDir, "asterisk", name))).toBe(true);
     }
+  });
+});
+
+describe("deployments-store preflight persistence", () => {
+  let tmpRoot: string;
+
+  beforeEach(() => {
+    tmpRoot = mkTempDir();
+    setWorkspaceRootForTesting(tmpRoot);
+  });
+
+  afterEach(() => {
+    setWorkspaceRootForTesting(null);
+    rmDirRecursive(tmpRoot);
+  });
+
+  it("resolves preflight path and reads/writes results", () => {
+    const dep = createDeployment({ type: "sts", providers: { sts: "openai-realtime" } });
+    const file = getPreflightFilePathByDeploymentId(dep.id);
+    expect(file && file.endsWith("preflight.json")).toBe(true);
+
+    const before = readPreflightResultByDeploymentId(dep.id);
+    expect(before).toBeNull();
+
+    const result: PreflightResult = {
+      items: [{ id: "docker:available:ok", title: "Docker is available", severity: "pass", message: "ok" }],
+      summary: {
+        total: 1,
+        pass: 1,
+        warn: 0,
+        fail: 0,
+        startedAt: Date.now(),
+        finishedAt: Date.now(),
+        durationMs: 0,
+        overall: "pass",
+      },
+    };
+
+    writePreflightResultByDeploymentId(dep.id, result);
+    const after = readPreflightResultByDeploymentId(dep.id);
+    expect(after?.summary.total).toBe(1);
+    expect(after?.items[0].id).toBe("docker:available:ok");
   });
 });

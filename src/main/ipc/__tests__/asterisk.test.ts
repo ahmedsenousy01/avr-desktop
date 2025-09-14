@@ -65,5 +65,6 @@ describe("asterisk IPC", () => {
       const st = await fs.stat(p);
       expect(st.isFile()).toBe(true);
     }
+    await fs.rm(tmp, { recursive: true, force: true });
   });
 });

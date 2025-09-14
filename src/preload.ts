@@ -1,8 +1,8 @@
 // Preload currently does not expose any APIs.
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { AsteriskApi, DeploymentsApi, ProvidersApi } from "@shared/ipc";
-import { AsteriskChannels, DeploymentsChannels, ProvidersChannels } from "@shared/ipc";
+import type { AsteriskApi, DeploymentsApi, PreflightApi, ProvidersApi } from "@shared/ipc";
+import { AsteriskChannels, DeploymentsChannels, PreflightChannels, ProvidersChannels } from "@shared/ipc";
 
 const providers: ProvidersApi = {
   list: () => ipcRenderer.invoke(ProvidersChannels.list),
@@ -30,3 +30,10 @@ const asterisk: AsteriskApi = {
 };
 
 contextBridge.exposeInMainWorld("asterisk", asterisk);
+
+const preflight: PreflightApi = {
+  run: (req) => ipcRenderer.invoke(PreflightChannels.run, req),
+  last: (req) => ipcRenderer.invoke(PreflightChannels.last, req),
+};
+
+contextBridge.exposeInMainWorld("preflight", preflight);

@@ -1,8 +1,7 @@
 // @vitest-environment jsdom
-import React, { act } from "react";
+import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { createRoot } from "react-dom/client";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { ProviderForm } from "../provider-form";
@@ -34,23 +33,13 @@ describe("ProviderForm", () => {
   afterEach(() => {
     cleanup();
   });
-  const renderIntoDocument = (ui: React.ReactElement) => {
-    const container = document.createElement("div");
-    document.body.appendChild(container);
-    const root = createRoot(container);
-    act(() => {
-      root.render(ui);
-    });
-    return { container, root };
-  };
 
   it("renders without crashing", () => {
     const onChange = vi.fn();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onCancel = vi.fn();
     const onTest = vi.fn().mockResolvedValue({ ok: true, message: "Key present" });
-
-    const { root } = renderIntoDocument(
+    const { unmount } = render(
       <ProviderForm
         providerId="openai"
         apiKey=""
@@ -60,9 +49,7 @@ describe("ProviderForm", () => {
         onTest={onTest}
       />
     );
-
-    // unmount to ensure no errors on cleanup
-    root.unmount();
+    unmount();
   });
 
   // Additional interaction tests can be added with React Testing Library for reliability
@@ -72,8 +59,7 @@ describe("ProviderForm", () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onCancel = vi.fn();
     const onTest = vi.fn().mockResolvedValue({ ok: false, message: "Missing or empty apiKey" });
-
-    const { container, root } = renderIntoDocument(
+    render(
       <ProviderForm
         providerId="openai"
         apiKey=""
@@ -83,16 +69,9 @@ describe("ProviderForm", () => {
         onTest={onTest}
       />
     );
-    await Promise.resolve();
-    const buttons = Array.from(container.querySelectorAll("button"));
-    const testButton = buttons.find((b) => (b as HTMLButtonElement).textContent.includes("Test"));
-    expect(testButton).toBeTruthy();
-    if (testButton) {
-      testButton.dispatchEvent(new MouseEvent("click", { bubbles: true }));
-    }
-    await Promise.resolve();
+    const testButton = await screen.findByRole("button", { name: /test/i });
+    await userEvent.click(testButton);
     expect(onTest).toHaveBeenCalledTimes(1);
-    root.unmount();
   });
 
   it("invokes onChange when input value changes", async () => {

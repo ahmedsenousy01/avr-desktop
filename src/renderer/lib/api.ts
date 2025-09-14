@@ -15,6 +15,11 @@ import type {
   DeploymentsListResponse,
   DeploymentsUpdateRequest,
   DeploymentsUpdateResponse,
+  PreflightApi,
+  PreflightLastRequest,
+  PreflightLastResponse,
+  PreflightRunRequest,
+  PreflightRunResponse,
   ProvidersApi,
 } from "@shared/ipc";
 
@@ -23,6 +28,7 @@ declare global {
     providers?: ProvidersApi;
     deployments?: DeploymentsApi;
     asterisk?: AsteriskApi;
+    preflight?: PreflightApi;
   }
 }
 
@@ -31,6 +37,8 @@ export const providers: ProvidersApi | undefined = window.providers;
 export const deployments: DeploymentsApi | undefined = window.deployments;
 
 export const asterisk: AsteriskApi | undefined = window.asterisk;
+
+export const preflight: PreflightApi | undefined = window.preflight;
 
 export async function asteriskValidateConfig(
   req: AsteriskValidateConfigRequest
@@ -81,4 +89,14 @@ export async function deploymentsDuplicate(req: DeploymentsDuplicateRequest): Pr
 export async function deploymentsDelete(req: DeploymentsDeleteRequest): Promise<DeploymentsDeleteResponse> {
   if (!window.deployments) throw new Error("Deployments API is not available in preload");
   return window.deployments.delete(req);
+}
+
+export async function preflightRun(req: PreflightRunRequest): Promise<PreflightRunResponse> {
+  if (!window.preflight) throw new Error("Preflight API is not available in preload");
+  return window.preflight.run(req);
+}
+
+export async function preflightLast(req: PreflightLastRequest): Promise<PreflightLastResponse> {
+  if (!window.preflight) throw new Error("Preflight API is not available in preload");
+  return window.preflight.last(req);
 }

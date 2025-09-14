@@ -110,5 +110,7 @@ describe("deployments IPC", () => {
     for (const name of ["ari.conf", "pjsip.conf", "extensions.conf", "manager.conf", "queues.conf"]) {
       expect(fs.existsSync(path.join(astDir, name))).toBe(true);
     }
+    // cleanup created deployment directory
+    fs.rmSync(path.join(root, "deployments", item.slug), { recursive: true, force: true });
   });
 });

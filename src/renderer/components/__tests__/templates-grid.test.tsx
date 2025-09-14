@@ -1,5 +1,6 @@
 import type { TemplateMetaForUI } from "../templates-grid";
-import { cleanup, fireEvent, render } from "@testing-library/react";
+import { cleanup, render } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { TemplatesGrid } from "../templates-grid";
@@ -52,7 +53,7 @@ describe("TemplatesGrid", () => {
     expect(getAllByText("STS").length).toBeGreaterThan(0);
   });
 
-  it("fires onCreate with the template id when Create is clicked", () => {
+  it("fires onCreate with the template id when Create is clicked", async () => {
     const templates = makeTemplates();
     const onCreate = vi.fn();
     const { getByTestId } = render(
@@ -63,7 +64,7 @@ describe("TemplatesGrid", () => {
     );
 
     const btn = getByTestId("create-openai") as HTMLButtonElement;
-    fireEvent.click(btn);
+    await userEvent.click(btn);
     expect(onCreate).toHaveBeenCalledTimes(1);
     expect(onCreate).toHaveBeenCalledWith("openai");
   });

@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type { PreflightResult } from "@shared/ipc";
 import type { AsteriskConfig } from "@shared/types/asterisk";
 import type { Deployment } from "@shared/types/deployments";
 import type { ASRProviderId, LLMProviderId, STSProviderId, TTSProviderId } from "@shared/types/validation";
@@ -196,4 +197,38 @@ export function deleteDeployment(id: string): boolean {
   if (!dir) return false;
   fs.rmSync(dir, { recursive: true, force: true });
   return true;
+}
+
+// --- Preflight results persistence ------------------------------------------
+
+function writeJsonAtomic(filePath: string, data: string): void {
+  const dir = path.dirname(filePath);
+  if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
+  const tempPath = path.join(dir, `${path.basename(filePath)}.tmp-${process.pid}-${Date.now()}`);
+  fs.writeFileSync(tempPath, data, { encoding: "utf8" });
+  fs.renameSync(tempPath, filePath);
+}
+
+export function getPreflightFilePathByDeploymentId(id: string): string | null {
+  const dir = findDeploymentDirById(id);
+  if (!dir) return null;
+  return path.join(dir, "preflight.json");
+}
+
+export function readPreflightResultByDeploymentId(id: string): PreflightResult | null {
+  const file = getPreflightFilePathByDeploymentId(id);
+  if (!file || !fs.existsSync(file)) return null;
+  try {
+    const raw = fs.readFileSync(file, "utf8");
+    return JSON.parse(raw) as PreflightResult;
+  } catch {
+    return null;
+  }
+}
+
+export function writePreflightResultByDeploymentId(id: string, result: PreflightResult): void {
+  const file = getPreflightFilePathByDeploymentId(id);
+  if (!file) throw new Error("Deployment not found");
+  const json = JSON.stringify(result, null, 2);
+  writeJsonAtomic(file, json);
 }

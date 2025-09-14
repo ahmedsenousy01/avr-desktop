@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AsteriskApi } from "@shared/ipc";
@@ -23,11 +24,13 @@ describe("AsteriskEditor", () => {
   it("renders fields and validates rtp range", async () => {
     render(<AsteriskEditor />);
 
-    const rtpStart = await screen.findByLabelText("RTP Start");
-    const rtpEnd = await screen.findByLabelText("RTP End");
+    const rtpStart = (await screen.findByLabelText("RTP Start")) as HTMLInputElement;
+    const rtpEnd = (await screen.findByLabelText("RTP End")) as HTMLInputElement;
 
-    fireEvent.change(rtpStart, { target: { value: "20000" } });
-    fireEvent.change(rtpEnd, { target: { value: "10000" } });
+    await userEvent.clear(rtpStart);
+    await userEvent.type(rtpStart, "20000");
+    await userEvent.clear(rtpEnd);
+    await userEvent.type(rtpEnd, "10000");
 
     await waitFor(() => {
       expect(screen.getByText("rtpEnd must be greater than or equal to rtpStart")).toBeTruthy();
@@ -36,7 +39,7 @@ describe("AsteriskEditor", () => {
 
   it("opens preview modal and shows rendered file names", async () => {
     render(<AsteriskEditor />);
-    fireEvent.click(screen.getByText("Preview"));
+    await userEvent.click(await screen.findByText("Preview"));
     await waitFor(() => expect(window.asterisk?.renderConfig).toHaveBeenCalled());
     expect(await screen.findByText("pjsip.conf")).toBeTruthy();
   });

@@ -1,4 +1,5 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
@@ -8,6 +9,8 @@ import type {
   DeploymentsListItem,
   DeploymentsListResponse,
   DeploymentsUpdateResponse,
+  PreflightApi,
+  PreflightLastResponse,
 } from "@shared/ipc";
 import { DeploymentsPage } from "@renderer/pages/deployments-page";
 
@@ -29,6 +32,26 @@ describe("DeploymentsPage", () => {
       ),
       delete: vi.fn(async (): Promise<DeploymentsDeleteResponse> => ({ ok: true })),
     } satisfies DeploymentsApi;
+
+    // Default: no prior preflight results
+    window.preflight = {
+      last: vi.fn(async (_req: { deploymentId: string }): Promise<PreflightLastResponse> => ({ result: null })),
+      run: vi.fn(async () => ({
+        result: {
+          items: [],
+          summary: {
+            total: 0,
+            pass: 0,
+            warn: 0,
+            fail: 0,
+            startedAt: Date.now(),
+            finishedAt: Date.now(),
+            durationMs: 0,
+            overall: "pass",
+          },
+        },
+      })),
+    } as unknown as PreflightApi;
   });
 
   afterEach(() => {
@@ -47,10 +70,11 @@ describe("DeploymentsPage", () => {
   it("renames a deployment", async () => {
     render(<DeploymentsPage />);
     const renameButtons = await screen.findAllByText("Rename");
-    fireEvent.click(renameButtons[0]);
-    const input = await screen.findByDisplayValue("One");
-    fireEvent.change(input, { target: { value: "One Renamed" } });
-    fireEvent.click(screen.getByText("Save"));
+    await userEvent.click(renameButtons[0]);
+    const input = (await screen.findByDisplayValue("One")) as HTMLInputElement;
+    await userEvent.clear(input);
+    await userEvent.type(input, "One Renamed");
+    await userEvent.click(screen.getByText("Save"));
     await waitFor(() => expect(window.deployments?.update).toHaveBeenCalledWith({ id: "1", name: "One Renamed" }));
     await waitFor(() => expect(window.deployments?.list).toHaveBeenCalledTimes(2));
   });
@@ -58,7 +82,7 @@ describe("DeploymentsPage", () => {
   it("duplicates a deployment", async () => {
     render(<DeploymentsPage />);
     const duplicateButtons = await screen.findAllByText("Duplicate");
-    fireEvent.click(duplicateButtons[0]);
+    await userEvent.click(duplicateButtons[0]);
     await waitFor(() => expect(window.deployments?.duplicate).toHaveBeenCalledWith({ id: "1", name: "One Copy" }));
   });
 
@@ -66,8 +90,52 @@ describe("DeploymentsPage", () => {
     const confirmSpy = vi.spyOn(window, "confirm").mockReturnValue(true);
     render(<DeploymentsPage />);
     const deleteButtons = await screen.findAllByText("Delete");
-    fireEvent.click(deleteButtons[0]);
+    await userEvent.click(deleteButtons[0]);
     await waitFor(() => expect(window.deployments?.delete).toHaveBeenCalledWith({ id: "1" }));
     confirmSpy.mockRestore();
+  });
+
+  it("gates Start button based on preflight status", async () => {
+    // Fail for id=1, Pass for id=2
+    (window.preflight as unknown as PreflightApi).last = vi.fn(async ({ deploymentId }: { deploymentId: string }) => {
+      if (deploymentId === "1") {
+        return {
+          result: {
+            items: [{ id: "x", title: "fail", severity: "fail", message: "f" }],
+            summary: {
+              total: 1,
+              pass: 0,
+              warn: 0,
+              fail: 1,
+              startedAt: Date.now(),
+              finishedAt: Date.now(),
+              durationMs: 5,
+              overall: "fail",
+            },
+          },
+        };
+      }
+      return {
+        result: {
+          items: [{ id: "y", title: "ok", severity: "pass", message: "ok" }],
+          summary: {
+            total: 1,
+            pass: 1,
+            warn: 0,
+            fail: 0,
+            startedAt: Date.now(),
+            finishedAt: Date.now(),
+            durationMs: 5,
+            overall: "pass",
+          },
+        },
+      };
+    }) as unknown as PreflightApi["last"];
+
+    render(<DeploymentsPage />);
+    // Two Start buttons: first disabled, second enabled
+    const startButtons = await screen.findAllByText("Start");
+    expect((startButtons[0] as HTMLButtonElement).disabled).toBe(true);
+    expect((startButtons[1] as HTMLButtonElement).disabled).toBe(false);
   });
 });
