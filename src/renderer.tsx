@@ -2,10 +2,10 @@ import { createRoot } from "react-dom/client";
 
 import "@renderer/styles/globals.css";
 
-import { App } from "@renderer/App";
+import { AppRouter } from "@renderer/routes";
 
 const container = document.getElementById("root");
 if (container) {
   const root = createRoot(container);
-  root.render(<App />);
+  root.render(<AppRouter />);
 }

@@ -71,8 +71,11 @@
     "vitest": "^3.2.4"
   },
   "dependencies": {
+    "@tanstack/react-router": "^1.131.41",
+    "@tanstack/react-router-devtools": "^1.131.42",
     "electron-squirrel-startup": "^1.0.1",
     "react": "19.1.1",
-    "react-dom": "19.1.1"
+    "react-dom": "19.1.1",
+    "zod": "^4.1.8"
   }
 }

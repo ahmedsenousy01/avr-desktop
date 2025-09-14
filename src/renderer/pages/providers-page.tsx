@@ -39,20 +39,18 @@ export const ProvidersPage: React.FC = () => {
   };
 
   return (
-    <div style={{ padding: 16 }}>
-      <h1 style={{ margin: 0, fontSize: 22, fontWeight: 700 }}>Providers & Keys</h1>
-      <p style={{ marginTop: 6, color: "#475569" }}>
-        Store API keys locally. Keys are optional and can be added later.
-      </p>
+    <div className="p-4">
+      <h1 className="m-0 text-2xl font-bold">Providers & Keys</h1>
+      <p className="mt-1.5 text-slate-600">Store API keys locally. Keys are optional and can be added later.</p>
 
       {!providersApi && (
-        <div style={{ marginTop: 8, color: "#991b1b", fontWeight: 600 }}>
+        <div className="mt-2 font-semibold text-red-800">
           Preload bridge not available. Reload the app (preload must expose window.providers).
         </div>
       )}
 
       {editingId && (
-        <div style={{ marginTop: 16 }}>
+        <div className="mt-4">
           <ProviderForm
             providerId={editingId}
             apiKey={providers[editingId].apiKey}
@@ -100,14 +98,14 @@ export const ProvidersPage: React.FC = () => {
         </div>
       )}
 
-      <div style={{ marginTop: 16, border: "1px solid #e5e7eb", borderRadius: 8, overflow: "hidden" }}>
-        <table style={{ width: "100%", borderCollapse: "separate", borderSpacing: 0 }}>
-          <thead style={{ background: "#f8fafc" }}>
+      <div className="mt-4 overflow-hidden rounded-lg border border-gray-200">
+        <table className="w-full border-separate border-spacing-0">
+          <thead className="bg-slate-50">
             <tr>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Provider</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Status</th>
-              <th style={{ textAlign: "left", padding: "10px 12px", fontWeight: 600 }}>Key</th>
-              <th style={{ width: 120 }} />
+              <th className="px-3 py-2.5 text-left font-semibold">Provider</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Status</th>
+              <th className="px-3 py-2.5 text-left font-semibold">Key</th>
+              <th className="w-[120px]" />
             </tr>
           </thead>
           <tbody>
@@ -117,45 +115,30 @@ export const ProvidersPage: React.FC = () => {
               return (
                 <tr
                   key={id}
-                  style={{ borderTop: "1px solid #e5e7eb" }}
+                  className="border-t border-gray-200"
                 >
-                  <td style={{ padding: "10px 12px", textTransform: "capitalize" }}>{id}</td>
-                  <td style={{ padding: "10px 12px" }}>
+                  <td className="px-3 py-2.5 capitalize">{id}</td>
+                  <td className="px-3 py-2.5">
                     <span
-                      style={{
-                        display: "inline-flex",
-                        alignItems: "center",
-                        gap: 8,
-                        color: present ? "#065f46" : "#991b1b",
-                        fontWeight: 600,
-                      }}
+                      className={
+                        "inline-flex items-center gap-2 font-semibold " +
+                        (present ? "text-emerald-700" : "text-red-800")
+                      }
                     >
                       <span
-                        style={{
-                          width: 10,
-                          height: 10,
-                          borderRadius: 9999,
-                          background: present ? "#10b981" : "#ef4444",
-                          display: "inline-block",
-                        }}
+                        className={
+                          "inline-block h-2.5 w-2.5 rounded-full " + (present ? "bg-emerald-500" : "bg-red-500")
+                        }
                       />
                       {present ? "Configured" : "Missing"}
                     </span>
                   </td>
-                  <td style={{ padding: "10px 12px", fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace" }}>
-                    {present ? "••••••••" : "—"}
-                  </td>
-                  <td style={{ padding: "10px 12px" }}>
+                  <td className="px-3 py-2.5 font-mono">{present ? "••••••••" : "—"}</td>
+                  <td className="px-3 py-2.5">
                     <button
                       type="button"
                       onClick={() => onEdit(id)}
-                      style={{
-                        padding: "6px 10px",
-                        borderRadius: 6,
-                        border: "1px solid #e5e7eb",
-                        background: "#f8fafc",
-                        cursor: "pointer",
-                      }}
+                      className="rounded-md border border-gray-200 bg-slate-50 px-2.5 py-1.5 font-medium hover:bg-slate-100"
                     >
                       Edit
                     </button>
@@ -171,18 +154,12 @@ export const ProvidersPage: React.FC = () => {
         <div
           role="status"
           aria-live="polite"
-          style={{
-            position: "fixed",
-            right: 16,
-            bottom: 16,
-            background: toast.variant === "success" ? "#ecfdf5" : "#fef2f2",
-            color: toast.variant === "success" ? "#065f46" : "#991b1b",
-            border: `1px solid ${toast.variant === "success" ? "#a7f3d0" : "#fecaca"}`,
-            padding: "8px 12px",
-            borderRadius: 8,
-            boxShadow: "0 4px 10px rgba(0,0,0,0.08)",
-            fontWeight: 600,
-          }}
+          className={
+            "fixed right-4 bottom-4 rounded-lg border px-3 py-2 font-semibold shadow " +
+            (toast.variant === "success"
+              ? "border-emerald-200 bg-emerald-50 text-emerald-800"
+              : "border-red-200 bg-red-50 text-red-800")
+          }
         >
           {toast.text}
         </div>

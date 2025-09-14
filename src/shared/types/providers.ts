@@ -13,6 +13,24 @@ export const PROVIDER_IDS = ["openai", "anthropic", "gemini", "deepgram", "eleve
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 /**
+ * Human-friendly display labels for providers.
+ */
+export const PROVIDER_DISPLAY_LABELS: Readonly<Record<ProviderId, string>> = {
+  openai: "OpenAI",
+  anthropic: "Anthropic",
+  gemini: "Google Gemini",
+  deepgram: "Deepgram",
+  elevenlabs: "ElevenLabs",
+} as const;
+
+/**
+ * Returns a human-friendly display label for a provider id.
+ */
+export function getProviderDisplayLabel(providerId: ProviderId): string {
+  return PROVIDER_DISPLAY_LABELS[providerId];
+}
+
+/**
  * Minimal credential shape for a provider.
  * Extend in future if a provider requires more than a single API key.
  */

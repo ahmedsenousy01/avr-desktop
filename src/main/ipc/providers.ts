@@ -1,4 +1,5 @@
 import { ipcMain } from "electron";
+import { z } from "zod/v4";
 
 import type {
   ProvidersGetResponse,
@@ -11,15 +12,21 @@ import { ProvidersChannels } from "@shared/ipc";
 import { PROVIDER_IDS } from "@shared/types/providers";
 import { readProviders, saveProviders } from "@main/services/providers-store";
 
-function isPlainObject(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
-}
+const ProviderIdSchema = z.enum([...PROVIDER_IDS] as [ProviderId, ...ProviderId[]]);
+const ProvidersGetSchema = z.object({ id: ProviderIdSchema });
 
-function assertValidProviderId(id: unknown): asserts id is (typeof PROVIDER_IDS)[number] {
-  if (typeof id !== "string" || !PROVIDER_IDS.includes(id as ProviderId)) {
-    throw new Error("Invalid provider id");
-  }
-}
+const ProviderCredentialsSchema = z.object({ apiKey: z.string() });
+const ProvidersPartialObjectSchema = z
+  .object(
+    Object.fromEntries(PROVIDER_IDS.map((id) => [id, ProviderCredentialsSchema])) as Record<
+      ProviderId,
+      typeof ProviderCredentialsSchema
+    >
+  )
+  .partial();
+
+const ProvidersSaveSchema = z.object({ partial: ProvidersPartialObjectSchema });
+const ProvidersTestSchema = z.object({ id: ProviderIdSchema });
 
 export function registerProvidersIpcHandlers(): void {
   // providers:list → { providers }
@@ -30,33 +37,33 @@ export function registerProvidersIpcHandlers(): void {
 
   // providers:get { id } → { id, apiKey }
   ipcMain.handle(ProvidersChannels.get, async (_event, req: unknown): Promise<ProvidersGetResponse> => {
-    if (!isPlainObject(req) || typeof req.id !== "string") {
-      throw new Error("Invalid request payload");
+    try {
+      const parsed = ProvidersGetSchema.parse(req);
+      const providers = readProviders();
+      return { id: parsed.id, apiKey: providers[parsed.id].apiKey };
+    } catch {
+      throw new Error("Invalid provider id");
     }
-    assertValidProviderId(req.id);
-    const providers = readProviders();
-    return { id: req.id, apiKey: providers[req.id].apiKey };
   });
 
   // providers:save { partial } → { providers }
   ipcMain.handle(ProvidersChannels.save, async (_event, req: unknown): Promise<ProvidersSaveResponse> => {
-    if (!isPlainObject(req) || !isPlainObject(req.partial)) {
-      throw new Error("Invalid request payload");
-    }
-    const providers = saveProviders(req.partial as unknown as ProvidersPartial);
+    const parsed = ProvidersSaveSchema.parse(req);
+    const providers = saveProviders(parsed.partial as ProvidersPartial);
     return { providers };
   });
 
   // providers:test { id } → { ok, message }
   ipcMain.handle(ProvidersChannels.test, async (_event, req: unknown): Promise<ProvidersTestResponse> => {
-    if (!isPlainObject(req) || typeof req.id !== "string") {
-      throw new Error("Invalid request payload");
+    try {
+      const parsed = ProvidersTestSchema.parse(req);
+      const providers = readProviders();
+      const key = providers[parsed.id].apiKey.trim();
+      const ok = key.length > 0;
+      const message = ok ? "Key present" : "Missing or empty apiKey";
+      return { ok, message };
+    } catch {
+      throw new Error("Invalid provider id");
     }
-    assertValidProviderId(req.id);
-    const providers = readProviders();
-    const key = providers[req.id].apiKey.trim();
-    const ok = key.length > 0;
-    const message = ok ? "Key present" : "Missing or empty apiKey";
-    return { ok, message };
   });
 }
