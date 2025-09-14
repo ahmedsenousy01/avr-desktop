@@ -3,7 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
-import { createDeployment } from "@main/services/deployments-store";
+import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
+import { createDeployment, duplicateDeployment, updateDeployment } from "@main/services/deployments-store";
 import { setWorkspaceRootForTesting } from "@main/services/workspace-root";
 
 function mkTempDir(): string {
@@ -35,9 +36,10 @@ describe("deployments-store", () => {
       name: "My Mod",
       providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
     });
-    const dir = path.join(tmpRoot, "deployments", dep.slug);
-    const file = path.join(dir, "deployment.json");
-    expect(fs.existsSync(dir)).toBe(true);
+    // ensure original written first
+    const _origDir = path.join(tmpRoot, "deployments", dep.slug);
+    const file = path.join(_origDir, "deployment.json");
+    expect(fs.existsSync(_origDir)).toBe(true);
     expect(fs.existsSync(file)).toBe(true);
     const json = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(json.type).toBe("modular");
@@ -49,9 +51,9 @@ describe("deployments-store", () => {
 
   it("creates an sts deployment and writes deployment.json", () => {
     const dep = createDeployment({ type: "sts", name: "My STS", providers: { sts: "openai-realtime" } });
-    const dir = path.join(tmpRoot, "deployments", dep.slug);
-    const file = path.join(dir, "deployment.json");
-    expect(fs.existsSync(dir)).toBe(true);
+    const _dir = path.join(tmpRoot, "deployments", dep.slug);
+    const file = path.join(_dir, "deployment.json");
+    expect(fs.existsSync(_dir)).toBe(true);
     expect(fs.existsSync(file)).toBe(true);
     const json = JSON.parse(fs.readFileSync(file, "utf8"));
     expect(json.type).toBe("sts");
@@ -59,5 +61,45 @@ describe("deployments-store", () => {
     expect(json.providers.llm).toBeUndefined();
     expect(json.providers.asr).toBeUndefined();
     expect(json.providers.tts).toBeUndefined();
+  });
+
+  it("updates asterisk config and emits conf files", async () => {
+    const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
+    const _dir = path.join(tmpRoot, "deployments", dep.slug);
+    const astDir = path.join(_dir, "asterisk");
+    const cfg = { ...DEFAULT_ASTERISK_CONFIG, externalIp: "198.51.100.5" };
+    const next = await updateDeployment(dep.id, { asterisk: cfg });
+    expect(next.asterisk?.externalIp).toBe("198.51.100.5");
+    // Files should be emitted
+    for (const name of ["ari.conf", "pjsip.conf", "extensions.conf", "manager.conf", "queues.conf"]) {
+      expect(fs.existsSync(path.join(astDir, name))).toBe(true);
+    }
+  });
+
+  it("is idempotent when writing asterisk files multiple times", async () => {
+    const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
+    const _dir = path.join(tmpRoot, "deployments", dep.slug);
+    const astDir = path.join(_dir, "asterisk");
+    const cfg = { ...DEFAULT_ASTERISK_CONFIG, externalIp: "203.0.113.10" };
+    await updateDeployment(dep.id, { asterisk: cfg });
+    await updateDeployment(dep.id, { asterisk: cfg });
+    // Still present after repeated writes
+    expect(fs.existsSync(astDir)).toBe(true);
+    expect(fs.existsSync(path.join(astDir, "pjsip.conf"))).toBe(true);
+  });
+
+  it("duplicates copies asterisk block and files", async () => {
+    const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
+    const _dirDup = path.join(tmpRoot, "deployments", dep.slug);
+    const cfg = { ...DEFAULT_ASTERISK_CONFIG, externalIp: "192.0.2.10" };
+    await updateDeployment(dep.id, { asterisk: cfg });
+
+    const dup = duplicateDeployment(dep.id, "Copy");
+    const dupDir = path.join(tmpRoot, "deployments", dup.slug);
+    const dupJson = JSON.parse(fs.readFileSync(path.join(dupDir, "deployment.json"), "utf8"));
+    expect(dupJson.asterisk.externalIp).toBe("192.0.2.10");
+    for (const name of ["ari.conf", "pjsip.conf", "extensions.conf", "manager.conf", "queues.conf"]) {
+      expect(fs.existsSync(path.join(dupDir, "asterisk", name))).toBe(true);
+    }
   });
 });

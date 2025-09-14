@@ -164,6 +164,12 @@ export const DeploymentsPage: React.FC = () => {
                         >
                           Delete
                         </button>
+                        <a
+                          href={`/asterisk?id=${item.id}`}
+                          className="rounded px-3 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                        >
+                          Edit Asterisk
+                        </a>
                       </div>
                     </td>
                   </tr>

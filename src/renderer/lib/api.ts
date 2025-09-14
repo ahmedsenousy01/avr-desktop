@@ -1,4 +1,9 @@
 import type {
+  AsteriskApi,
+  AsteriskRenderConfigRequest,
+  AsteriskRenderConfigResponse,
+  AsteriskValidateConfigRequest,
+  AsteriskValidateConfigResponse,
   DeploymentsApi,
   DeploymentsCreateFromSelectionRequest,
   DeploymentsCreateFromSelectionResponse,
@@ -17,12 +22,27 @@ declare global {
   interface Window {
     providers?: ProvidersApi;
     deployments?: DeploymentsApi;
+    asterisk?: AsteriskApi;
   }
 }
 
 export const providers: ProvidersApi | undefined = window.providers;
 
 export const deployments: DeploymentsApi | undefined = window.deployments;
+
+export const asterisk: AsteriskApi | undefined = window.asterisk;
+
+export async function asteriskValidateConfig(
+  req: AsteriskValidateConfigRequest
+): Promise<AsteriskValidateConfigResponse> {
+  if (!window.asterisk) throw new Error("Asterisk API is not available in preload");
+  return window.asterisk.validateConfig(req);
+}
+
+export async function asteriskRenderConfig(req: AsteriskRenderConfigRequest): Promise<AsteriskRenderConfigResponse> {
+  if (!window.asterisk) throw new Error("Asterisk API is not available in preload");
+  return window.asterisk.renderConfig(req);
+}
 
 export async function deploymentsCreateFromTemplate(
   templateId: string,

@@ -1,9 +1,11 @@
 import fs from "node:fs";
 import path from "node:path";
 
+import type { AsteriskConfig } from "@shared/types/asterisk";
 import type { Deployment } from "@shared/types/deployments";
 import type { ASRProviderId, LLMProviderId, STSProviderId, TTSProviderId } from "@shared/types/validation";
 import { DeploymentSchema } from "@shared/types/deployments";
+import { renderAsteriskConfig } from "@main/services/asterisk-config";
 import { getWorkspaceRoot } from "@main/services/workspace-root";
 
 function getDeploymentsRoot(): string {
@@ -116,10 +118,10 @@ export function findDeploymentDirById(id: string): string | null {
   return null;
 }
 
-export function updateDeployment(
+export async function updateDeployment(
   id: string,
-  patch: { name?: string; providers?: Partial<Deployment["providers"]> }
-): Deployment {
+  patch: { name?: string; providers?: Partial<Deployment["providers"]>; asterisk?: AsteriskConfig }
+): Promise<Deployment> {
   const dir = findDeploymentDirById(id);
   if (!dir) throw new Error("Deployment not found");
   const file = path.join(dir, "deployment.json");
@@ -128,9 +130,18 @@ export function updateDeployment(
     ...current,
     name: patch.name ?? current.name,
     providers: { ...current.providers, ...(patch.providers ?? {}) },
+    asterisk: patch.asterisk ?? current.asterisk,
     updatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(file, JSON.stringify(next, null, 2), "utf8");
+
+  // Emit asterisk conf files if provided
+  if (patch.asterisk) {
+    const astDir = path.join(dir, "asterisk");
+    if (!fs.existsSync(astDir)) fs.mkdirSync(astDir, { recursive: true });
+    // Wait for files to be written so callers can assert existence
+    await renderAsteriskConfig(patch.asterisk, undefined, astDir, false);
+  }
   return next;
 }
 
@@ -139,7 +150,7 @@ export function duplicateDeployment(id: string, name?: string): Deployment {
   if (!dir) throw new Error("Deployment not found");
   const current = DeploymentSchema.parse(JSON.parse(fs.readFileSync(path.join(dir, "deployment.json"), "utf8")));
   if (current.type === "modular") {
-    return createDeployment({
+    const created = createDeployment({
       type: "modular",
       name: name ?? `${current.name} Copy`,
       providers: {
@@ -148,12 +159,36 @@ export function duplicateDeployment(id: string, name?: string): Deployment {
         tts: current.providers.tts as TTSProviderId,
       },
     });
+    // Copy asterisk settings and files if present
+    if (current.asterisk) {
+      const newDir = findDeploymentDirById(created.id);
+      if (newDir) {
+        const newFile = path.join(newDir, "deployment.json");
+        const newJson = JSON.parse(fs.readFileSync(newFile, "utf8"));
+        newJson.asterisk = current.asterisk;
+        newJson.updatedAt = new Date().toISOString();
+        fs.writeFileSync(newFile, JSON.stringify(newJson, null, 2), "utf8");
+
+        const srcAst = path.join(dir, "asterisk");
+        const dstAst = path.join(newDir, "asterisk");
+        if (fs.existsSync(srcAst)) {
+          if (!fs.existsSync(dstAst)) fs.mkdirSync(dstAst, { recursive: true });
+          for (const ent of fs.readdirSync(srcAst, { withFileTypes: true })) {
+            if (ent.isFile()) {
+              fs.copyFileSync(path.join(srcAst, ent.name), path.join(dstAst, ent.name));
+            }
+          }
+        }
+      }
+    }
+    return created;
   }
-  return createDeployment({
+  const created = createDeployment({
     type: "sts",
     name: name ?? `${current.name} Copy`,
     providers: { sts: current.providers.sts as STSProviderId },
   });
+  return created;
 }
 
 export function deleteDeployment(id: string): boolean {

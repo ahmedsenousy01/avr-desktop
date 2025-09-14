@@ -1,3 +1,4 @@
+import type { AsteriskConfig } from "./types/asterisk";
 import type { ProviderId, Providers, ProvidersPartial } from "./types/providers";
 
 // Providers IPC channels
@@ -93,6 +94,7 @@ export interface DeploymentsUpdateRequest {
   id: string;
   name?: string;
   providers?: Record<string, string>;
+  asterisk?: AsteriskConfig;
 }
 
 export interface DeploymentsUpdateResponse {
@@ -125,4 +127,42 @@ export type DeploymentsApi = {
   update: (req: DeploymentsUpdateRequest) => Promise<DeploymentsUpdateResponse>;
   duplicate: (req: DeploymentsDuplicateRequest) => Promise<DeploymentsDuplicateResponse>;
   delete: (req: DeploymentsDeleteRequest) => Promise<DeploymentsDeleteResponse>;
+};
+
+// Asterisk IPC channels
+export const AsteriskChannels = {
+  renderConfig: "asterisk:render-config",
+  validateConfig: "asterisk:validate-config",
+} as const;
+
+export interface AsteriskValidateConfigRequest {
+  config: AsteriskConfig;
+}
+
+export interface AsteriskValidateConfigResponse {
+  valid: boolean;
+  errors: string[];
+}
+
+export interface AsteriskRenderConfigRequest {
+  config: AsteriskConfig;
+  /** Optional: templates source directory; defaults to built-in templates when omitted */
+  sourceDir?: string;
+  /** Optional: target directory; when provided and preview=false, files will be written */
+  targetDir?: string;
+  /** If true (default), returns rendered file contents without writing to disk */
+  preview?: boolean;
+}
+
+export interface AsteriskRenderConfigResponse {
+  /** For preview mode: filename -> rendered content */
+  files?: Record<string, string>;
+  /** For write mode: list of file paths written */
+  written?: string[];
+}
+
+// Typed API exposed via preload (window.asterisk)
+export type AsteriskApi = {
+  validateConfig: (req: AsteriskValidateConfigRequest) => Promise<AsteriskValidateConfigResponse>;
+  renderConfig: (req: AsteriskRenderConfigRequest) => Promise<AsteriskRenderConfigResponse>;
 };

@@ -1,6 +1,7 @@
 import type { Deployment } from "../deployments";
 import { describe, expect, it } from "vitest";
 
+import { DEFAULT_ASTERISK_CONFIG } from "../asterisk";
 import { isValidDeployment, validateDeployment } from "../deployments";
 
 describe("deployments types and validation", () => {
@@ -25,6 +26,20 @@ describe("deployments types and validation", () => {
       slug: "my-sts",
       type: "sts",
       providers: { sts: "openai-realtime" },
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    expect(isValidDeployment(d)).toBe(true);
+  });
+
+  it("accepts deployment with asterisk block and validates it", () => {
+    const d: Deployment = {
+      id: "id-3",
+      name: "With Asterisk",
+      slug: "with-ast",
+      type: "modular",
+      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      asterisk: { ...DEFAULT_ASTERISK_CONFIG, externalIp: "198.51.100.5" },
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };

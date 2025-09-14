@@ -38,6 +38,7 @@ const UpdateSchema = z.object({
   id: z.string(),
   name: z.string().optional(),
   providers: z.record(z.string(), z.string()).optional(),
+  asterisk: z.any().optional(),
 });
 const DuplicateSchema = z.object({ id: z.string(), name: z.string().optional() });
 const DeleteSchema = z.object({ id: z.string() });
@@ -101,7 +102,11 @@ export function registerDeploymentsIpcHandlers(): void {
 
   ipcMain.handle(DeploymentsChannels.update, async (_event, req: unknown): Promise<{ id: string; name: string }> => {
     const parsed = UpdateSchema.parse(req);
-    const next = updateDeployment(parsed.id, { name: parsed.name, providers: parsed.providers });
+    const next = await updateDeployment(parsed.id, {
+      name: parsed.name,
+      providers: parsed.providers,
+      asterisk: parsed.asterisk,
+    });
     return { id: next.id, name: next.name };
   });
 

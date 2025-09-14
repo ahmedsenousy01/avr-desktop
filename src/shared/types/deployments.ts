@@ -1,6 +1,8 @@
+import type { AsteriskConfig } from "./asterisk";
 import type { ASRProviderId, LLMProviderId, STSProviderId, TTSProviderId } from "./validation";
 import { z } from "zod/v4";
 
+import { AsteriskConfigSchema } from "./asterisk";
 import { ASR_PROVIDER_IDS, LLM_PROVIDER_IDS, STS_PROVIDER_IDS, TTS_PROVIDER_IDS } from "./validation";
 
 export type DeploymentType = "modular" | "sts";
@@ -18,6 +20,7 @@ export interface Deployment {
   slug: string;
   type: DeploymentType;
   providers: DeploymentProviders;
+  asterisk?: AsteriskConfig;
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
@@ -41,6 +44,7 @@ const BaseDeploymentSchema = z.object({
   slug: z.string(),
   type: z.enum(["modular", "sts"] as const),
   providers: DeploymentProvidersSchema,
+  asterisk: AsteriskConfigSchema.optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });
