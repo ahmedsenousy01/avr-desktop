@@ -133,3 +133,24 @@ export function mergeProviders(base: Providers, partial: ProvidersPartial): Prov
 
   return result;
 }
+
+/**
+ * Retrieve a provider's API key, returning an empty string if not present.
+ */
+export function getProviderApiKey(providers: Providers, providerId: ProviderId): string {
+  return providers[providerId].apiKey;
+}
+
+/**
+ * Pick API keys for a set of provider ids as a simple mapping.
+ */
+export function pickProviderApiKeys(
+  providers: Providers,
+  providerIds: readonly ProviderId[]
+): Record<ProviderId, string> {
+  const result = {} as Record<ProviderId, string>;
+  for (const id of providerIds) {
+    result[id] = getProviderApiKey(providers, id);
+  }
+  return result;
+}
