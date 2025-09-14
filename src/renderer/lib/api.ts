@@ -1,3 +1,9 @@
-import type { CounterApi } from "@shared/ipc";
+import type { ProvidersApi } from "@shared/ipc";
 
-export const api: CounterApi = (globalThis as unknown as { api: CounterApi }).api;
+declare global {
+  interface Window {
+    providers?: ProvidersApi;
+  }
+}
+
+export const providers: ProvidersApi | undefined = window.providers;

@@ -1,12 +1,14 @@
-// See the Electron documentation for details on how to use preload scripts:
-// https://www.electronjs.org/docs/latest/tutorial/process-model#preload-scripts
+// Preload currently does not expose any APIs.
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { CounterApi } from "@shared/ipc";
+import type { ProvidersApi } from "@shared/ipc";
+import { ProvidersChannels } from "@shared/ipc";
 
-const api: CounterApi = {
-  readCounter: () => ipcRenderer.invoke("counter:read"),
-  incrementCounter: () => ipcRenderer.invoke("counter:increment"),
+const providers: ProvidersApi = {
+  list: () => ipcRenderer.invoke(ProvidersChannels.list),
+  get: (req) => ipcRenderer.invoke(ProvidersChannels.get, req),
+  save: (req) => ipcRenderer.invoke(ProvidersChannels.save, req),
+  test: (req) => ipcRenderer.invoke(ProvidersChannels.test, req),
 };
 
-contextBridge.exposeInMainWorld("api", api);
+contextBridge.exposeInMainWorld("providers", providers);
