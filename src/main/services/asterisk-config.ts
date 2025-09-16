@@ -144,8 +144,22 @@ export async function renderAsteriskConfig(
     await Promise.all(
       Object.entries(files).map(async ([filename, content]) => {
         const outPath = path.join(targetDir, filename);
-        await fs.writeFile(outPath, content, "utf8");
-        written.push(outPath);
+        try {
+          // If a directory exists where a file should be, remove it first to avoid EISDIR
+          try {
+            const st = await fs.stat(outPath);
+            if (st.isDirectory()) {
+              await fs.rm(outPath, { recursive: true, force: true });
+            }
+          } catch {
+            // path does not exist or unreadable; continue
+          }
+          await fs.writeFile(outPath, content, "utf8");
+          written.push(outPath);
+        } catch (err) {
+          const message = err instanceof Error ? err.message : String(err);
+          throw new Error(`Failed to write '${filename}' to '${targetDir}': ${message}`);
+        }
       })
     );
   }

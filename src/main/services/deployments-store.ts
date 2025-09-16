@@ -138,9 +138,9 @@ export async function updateDeployment(
 
   // Emit asterisk conf files if provided
   if (patch.asterisk) {
-    const astDir = path.join(dir, "asterisk");
+    const astDir = path.join(dir, "asterisk", "conf");
     if (!fs.existsSync(astDir)) fs.mkdirSync(astDir, { recursive: true });
-    // Wait for files to be written so callers can assert existence
+    // Write templates into asterisk/conf to match compose volume mounts
     await renderAsteriskConfig(patch.asterisk, undefined, astDir, false);
   }
   return next;
@@ -170,13 +170,17 @@ export function duplicateDeployment(id: string, name?: string): Deployment {
         newJson.updatedAt = new Date().toISOString();
         fs.writeFileSync(newFile, JSON.stringify(newJson, null, 2), "utf8");
 
-        const srcAst = path.join(dir, "asterisk");
-        const dstAst = path.join(newDir, "asterisk");
-        if (fs.existsSync(srcAst)) {
-          if (!fs.existsSync(dstAst)) fs.mkdirSync(dstAst, { recursive: true });
-          for (const ent of fs.readdirSync(srcAst, { withFileTypes: true })) {
+        // Copy asterisk files, supporting both legacy layout (asterisk/*.conf)
+        // and new layout (asterisk/conf/*.conf). Always write to new layout.
+        const srcAstRoot = path.join(dir, "asterisk");
+        const srcAstConf = path.join(srcAstRoot, "conf");
+        const dstAstConf = path.join(newDir, "asterisk", "conf");
+        if (!fs.existsSync(dstAstConf)) fs.mkdirSync(dstAstConf, { recursive: true });
+        const copyFrom = fs.existsSync(srcAstConf) ? srcAstConf : srcAstRoot;
+        if (fs.existsSync(copyFrom)) {
+          for (const ent of fs.readdirSync(copyFrom, { withFileTypes: true })) {
             if (ent.isFile()) {
-              fs.copyFileSync(path.join(srcAst, ent.name), path.join(dstAst, ent.name));
+              fs.copyFileSync(path.join(copyFrom, ent.name), path.join(dstAstConf, ent.name));
             }
           }
         }

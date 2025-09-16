@@ -11,6 +11,7 @@ import type {
 } from "@shared/ipc";
 import { ComposeChannels, ComposeEventChannels } from "@shared/ipc";
 import { DeploymentSchema } from "@shared/types/deployments";
+import { renderAsteriskConfig } from "@main/services/asterisk-config";
 import { buildComposeObject, getRoleForServiceName, writeComposeFile } from "@main/services/compose-writer";
 import { findDeploymentDirById } from "@main/services/deployments-store";
 import { getFriendlyDockerErrorMessage, runDocker, runDockerStream } from "@main/services/docker-cli";
@@ -58,6 +59,38 @@ export function registerComposeIpcHandlers(): void {
     const providers = readProviders();
 
     try {
+      // Ensure Asterisk config files exist in asterisk/conf before bringing up containers
+      const astConfDir = path.join(depDir, "asterisk", "conf");
+      const required = ["manager.conf", "pjsip.conf", "extensions.conf", "queues.conf", "ari.conf"];
+      let needsWrite = !fs.existsSync(astConfDir);
+      if (!needsWrite) {
+        for (const f of required) {
+          const p = path.join(astConfDir, f);
+          if (!fs.existsSync(p)) {
+            needsWrite = true;
+            break;
+          }
+          try {
+            const st = fs.statSync(p);
+            if (!st.isFile() || st.size === 0) {
+              needsWrite = true;
+              break;
+            }
+          } catch {
+            needsWrite = true;
+            break;
+          }
+        }
+      }
+      if (needsWrite) {
+        // Write using deployment's asterisk config (falls back to defaults inside service)
+        try {
+          await renderAsteriskConfig(dep.asterisk ?? ({} as never), undefined, astConfDir, false);
+        } catch {
+          // Best-effort: continue even if write fails; docker will surface errors
+        }
+      }
+
       const { spec } = buildComposeObject(dep, providers, dep.asterisk);
       const { stdout } = await runDocker(["compose", "up", "-d"], { cwd: depDir, timeoutMs: 60_000 });
       const services = Object.keys(spec.services);

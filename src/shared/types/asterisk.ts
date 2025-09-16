@@ -14,7 +14,7 @@ export type AsteriskCodec = (typeof SUPPORTED_CODECS)[number];
 
 export const AsteriskConfigSchema = z
   .object({
-    externalIp: z.string().trim(),
+    externalIp: z.string().trim().min(1, "External IP is required"),
     sipPort: z.number().int().min(1).max(65535),
     rtpStart: z.number().int().min(1).max(65535),
     rtpEnd: z.number().int().min(1).max(65535),
@@ -41,10 +41,10 @@ export const AsteriskConfigSchema = z
 export type AsteriskConfig = z.infer<typeof AsteriskConfigSchema>;
 
 export const DEFAULT_ASTERISK_CONFIG: AsteriskConfig = {
-  externalIp: "",
+  externalIp: "127.0.0.1",
   sipPort: 5060,
   rtpStart: 10000,
-  rtpEnd: 20000,
+  rtpEnd: 10050,
   /** Default codec preference favors quality (opus) with ulaw fallback. */
   codecs: ["opus", "ulaw"],
   dtmfMode: "rfc4733",

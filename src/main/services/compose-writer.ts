@@ -36,13 +36,22 @@ export interface ComposeService {
   environment?: Record<string, string>;
   ports?: (string | number)[];
   volumes?: string[];
-  networks?: Record<string, { aliases?: string[] }>;
+  networks?: string[] | Record<string, { aliases?: string[] }>;
 }
 
 export interface ComposeSpec {
   version?: string;
   services: Record<string, ComposeService>;
-  networks: Record<string, { name?: string; driver?: string }>;
+  networks: Record<
+    string,
+    {
+      name?: string;
+      driver?: string;
+      ipam?: {
+        config?: { subnet: string }[];
+      };
+    }
+  >;
 }
 
 export interface ComposeBuildResult {
@@ -69,6 +78,7 @@ export function buildComposeObject(
   const named = nameFragments(deployment.slug, fragments);
   const services: ComposeSpec["services"] = {};
   const networkName = deployment.slug;
+  const asteriskServiceName = named.find((f) => f.fragmentId === "asterisk")?.serviceName;
 
   for (const nf of named) {
     const env = getEnvForFragment(providers, nf.fragmentId);
@@ -83,6 +93,16 @@ export function buildComposeObject(
       svc.volumes = getAsteriskConfMounts();
     }
 
+    if (nf.fragmentId === "ami") {
+      svc.environment = {
+        PORT: "6006",
+        AMI_HOST: asteriskServiceName ?? "asterisk",
+        AMI_PORT: "5038",
+        AMI_USERNAME: "avr",
+        AMI_PASSWORD: "avr",
+      };
+    }
+
     services[nf.serviceName] = svc;
   }
 
@@ -92,6 +112,13 @@ export function buildComposeObject(
       [networkName]: {
         name: networkName,
         driver: "bridge",
+        ipam: {
+          config: [
+            {
+              subnet: "172.20.0.0/24",
+            },
+          ],
+        },
       },
     },
   } as ComposeSpec);
@@ -103,6 +130,7 @@ export function buildComposeObject(
 function createBaseService(serviceName: string, aliases: string[], networkName: string): ComposeService {
   return {
     container_name: serviceName,
+    platform: "linux/x86_64",
     restart: "always",
     networks: {
       [networkName]: { aliases },
@@ -287,11 +315,11 @@ function withIfSet(key: string, value: string): EnvMap {
  */
 export function getAsteriskConfMounts(): string[] {
   return [
-    "./asterisk/manager.conf:/etc/asterisk/my_manager.conf:ro",
-    "./asterisk/pjsip.conf:/etc/asterisk/my_pjsip.conf:ro",
-    "./asterisk/extensions.conf:/etc/asterisk/my_extensions.conf:ro",
-    "./asterisk/queues.conf:/etc/asterisk/my_queues.conf:ro",
-    "./asterisk/ari.conf:/etc/asterisk/my_ari.conf:ro",
+    "./asterisk/conf/manager.conf:/etc/asterisk/my_manager.conf",
+    "./asterisk/conf/pjsip.conf:/etc/asterisk/my_pjsip.conf",
+    "./asterisk/conf/extensions.conf:/etc/asterisk/my_extensions.conf",
+    "./asterisk/conf/queues.conf:/etc/asterisk/my_queues.conf",
+    "./asterisk/conf/ari.conf:/etc/asterisk/my_ari.conf",
   ];
 }
 
