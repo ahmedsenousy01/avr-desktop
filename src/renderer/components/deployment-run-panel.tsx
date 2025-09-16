@@ -1,12 +1,19 @@
-import React, { useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import type { ComposeLogsClosedEvent, ComposeLogsDataEvent, ComposeServiceStatus } from "@shared/ipc";
+import type {
+  ComposeLogsClosedEvent,
+  ComposeLogsDataEvent,
+  ComposeLogsErrorEvent,
+  ComposeServiceStatus,
+} from "@shared/ipc";
 import {
   composeDown,
   composeGenerate,
+  composeLogsExport,
   composeLogsStart,
   composeLogsStop,
-  composeStatus,
+  composeStatusStart,
+  composeStatusStop,
   composeUp,
 } from "@renderer/lib/api";
 
@@ -20,56 +27,64 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
   const [busy, setBusy] = useState<BusyAction>("idle");
   const [message, setMessage] = useState<string | null>(null);
   const [services, setServices] = useState<ComposeServiceStatus[]>([]);
-  const pollingRef = useRef<number | null>(null);
-  const inFlightRef = useRef<boolean>(false);
+  const [statusSubscriptionId, setStatusSubscriptionId] = useState<string | null>(null);
+  // removed legacy polling refs after switching to status subscription
   const [logFollow, setLogFollow] = useState<boolean>(true);
   const [logFilter, setLogFilter] = useState<string>("");
   const [logService, setLogService] = useState<string | undefined>(undefined);
   const [logSubscriptionId, setLogSubscriptionId] = useState<string | null>(null);
-  const [logs, setLogs] = useState<string>("");
+  const LOG_RING_MAX = 2000;
+  const [logBuffer, setLogBuffer] = useState<string[]>([]);
+  const [logCounts, setLogCounts] = useState<Record<string, number>>({ "": 0 });
+  const [logState, setLogState] = useState<"idle" | "connected" | "reconnecting" | "stopped">("idle");
   const logsEndRef = useRef<HTMLDivElement | null>(null);
 
   const isBusy = useMemo(() => busy !== "idle", [busy]);
 
   useEffect(() => {
-    async function tick(): Promise<void> {
-      if (inFlightRef.current) return;
-      inFlightRef.current = true;
+    let localId: string | null = null;
+    (async () => {
       try {
-        const res = await composeStatus({ deploymentId });
-        setServices(res.services);
+        const { subscriptionId } = await composeStatusStart({ deploymentId, intervalMs: 2000 });
+        localId = subscriptionId;
+        setStatusSubscriptionId(subscriptionId);
       } catch {
-        // swallow errors for polling
-      } finally {
-        inFlightRef.current = false;
+        // ignore subscribe failure; UI may remain empty
       }
-    }
-
-    void tick();
-    pollingRef.current = window.setInterval(() => {
-      void tick();
-    }, 2000);
+    })();
     return () => {
-      if (pollingRef.current) window.clearInterval(pollingRef.current);
-      pollingRef.current = null;
+      if (localId) {
+        void composeStatusStop({ subscriptionId: localId });
+      }
     };
   }, [deploymentId]);
 
-  async function startLogs(): Promise<void> {
-    try {
-      if (logSubscriptionId) {
-        await composeLogsStop({ subscriptionId: logSubscriptionId });
-        setLogSubscriptionId(null);
+  const startLogs = useCallback(
+    async (clearBuffer = true): Promise<void> => {
+      try {
+        if (logSubscriptionId) {
+          await composeLogsStop({ subscriptionId: logSubscriptionId });
+          setLogSubscriptionId(null);
+        }
+        if (clearBuffer) {
+          setLogBuffer([]);
+          setLogCounts((_prev) => {
+            const next: Record<string, number> = { "": 0 };
+            for (const s of services) next[s.service] = 0;
+            return next;
+          });
+        }
+        const { subscriptionId } = await composeLogsStart({ deploymentId, service: logService });
+        setLogSubscriptionId(subscriptionId);
+        if (!clearBuffer) setLogState("reconnecting");
+      } catch (e) {
+        setMessage(e instanceof Error ? e.message : "Failed to start logs");
       }
-      setLogs("");
-      const { subscriptionId } = await composeLogsStart({ deploymentId, service: logService });
-      setLogSubscriptionId(subscriptionId);
-    } catch (e) {
-      setMessage(e instanceof Error ? e.message : "Failed to start logs");
-    }
-  }
+    },
+    [logSubscriptionId, services, deploymentId, logService]
+  );
 
-  async function stopLogs(): Promise<void> {
+  const stopLogs = useCallback(async (): Promise<void> => {
     try {
       if (!logSubscriptionId) return;
       await composeLogsStop({ subscriptionId: logSubscriptionId });
@@ -77,8 +92,9 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
       // non-fatal
     } finally {
       setLogSubscriptionId(null);
+      setLogState("stopped");
     }
-  }
+  }, [logSubscriptionId]);
 
   useEffect(() => {
     if (!logFollow) return;
@@ -88,32 +104,97 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     ) {
       logsEndRef.current.scrollIntoView({ behavior: "smooth" });
     }
-  }, [logs, logFollow]);
+  }, [logBuffer, logFollow]);
 
   useEffect(() => {
     // Subscribe to logs events
     const win = window as unknown as {
       composeEvents?: {
+        onStatusUpdate: (cb: (payload: unknown) => void) => void;
         onLogsData: (cb: (payload: unknown) => void) => void;
         onLogsClosed: (cb: (payload: unknown) => void) => void;
+        onLogsError: (cb: (payload: unknown) => void) => void;
       };
+    };
+    const onStatus = (payload: unknown) => {
+      const evt = payload as { subscriptionId: string; services: ComposeServiceStatus[] };
+      // Accept events if subscription id matches, or before id is established
+      if (statusSubscriptionId && evt.subscriptionId !== statusSubscriptionId) return;
+      setServices(evt.services);
     };
     const onData = (payload: unknown) => {
       const evt = payload as ComposeLogsDataEvent;
       if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
-      setLogs((prev) => (prev.length ? prev + "\n" + evt.chunk : evt.chunk));
+      const lines = String(evt.chunk)
+        .split(/\n/)
+        .filter((l) => l.length > 0);
+      if (lines.length > 0) {
+        setLogBuffer((prev) => {
+          const next = prev.concat(lines);
+          return next.length <= LOG_RING_MAX ? next : next.slice(next.length - LOG_RING_MAX);
+        });
+        if (logState !== "connected") setLogState("connected");
+      }
+      if (lines.length > 0) {
+        setLogCounts((prev) => {
+          const next = { ...prev };
+          for (const line of lines) {
+            next[""] = (next[""] ?? 0) + 1; // All tab
+            const svc = logService ? logService : parseServiceNameFromLine(line);
+            if (svc) next[svc] = (next[svc] ?? 0) + 1;
+          }
+          return next;
+        });
+      }
     };
     const onClosed = (payload: unknown) => {
       const evt = payload as ComposeLogsClosedEvent;
       if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
       setLogSubscriptionId(null);
+      if (logFollow) {
+        setLogState("reconnecting");
+        void startLogs(false);
+      } else {
+        setLogState("stopped");
+      }
     };
+    const onError = (payload: unknown) => {
+      const evt = payload as ComposeLogsErrorEvent;
+      if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
+      setMessage(evt.message);
+      setLogBuffer((prev) => prev.concat([`[error] ${evt.message}`]));
+    };
+    win.composeEvents?.onStatusUpdate(onStatus);
     win.composeEvents?.onLogsData(onData);
     win.composeEvents?.onLogsClosed(onClosed);
+    win.composeEvents?.onLogsError(onError);
     return () => {
       // best-effort: no off() provided; new handlers replace page lifecycle
     };
-  }, [logSubscriptionId]);
+  }, [statusSubscriptionId, logSubscriptionId, logService, logFollow, logState, startLogs]);
+
+  // Restart logs stream when selected service changes and a stream is active
+  useEffect(() => {
+    if (!logSubscriptionId) return;
+    void startLogs();
+  }, [logService, logSubscriptionId, startLogs]);
+
+  // Ensure counts map includes all current services
+  useEffect(() => {
+    setLogCounts((prev) => {
+      const next: Record<string, number> = { ...prev };
+      if (!Object.prototype.hasOwnProperty.call(next, "")) next[""] = 0;
+      for (const s of services) {
+        if (!Object.prototype.hasOwnProperty.call(next, s.service)) next[s.service] = 0;
+      }
+      return next;
+    });
+  }, [services]);
+
+  function parseServiceNameFromLine(line: string): string | undefined {
+    const m = line.match(/^([A-Za-z0-9._-]+)\s+\|\s/);
+    return m ? m[1] : undefined;
+  }
 
   function setIdle(): void {
     setBusy("idle");
@@ -138,6 +219,19 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     try {
       const res = await composeUp({ deploymentId });
       setMessage(`Started: ${res.services.join(", ")}`);
+      // ensure status watch is running after up
+      if (!statusSubscriptionId) {
+        try {
+          const { subscriptionId } = await composeStatusStart({ deploymentId, intervalMs: 2000 });
+          setStatusSubscriptionId(subscriptionId);
+        } catch {
+          // ignore
+        }
+      }
+      // auto-start logs for current selection (All or service)
+      if (!logSubscriptionId) {
+        await startLogs();
+      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to start services");
     } finally {
@@ -151,6 +245,26 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     try {
       const res = await composeDown({ deploymentId });
       setMessage(`Stopped: ${res.services.join(", ")}`);
+      // stop status watch on down
+      if (statusSubscriptionId) {
+        try {
+          await composeStatusStop({ subscriptionId: statusSubscriptionId });
+        } catch {
+          // ignore
+        } finally {
+          setStatusSubscriptionId(null);
+        }
+      }
+      // stop logs stream if active
+      if (logSubscriptionId) {
+        try {
+          await composeLogsStop({ subscriptionId: logSubscriptionId });
+        } catch {
+          // ignore
+        } finally {
+          setLogSubscriptionId(null);
+        }
+      }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to stop services");
     } finally {
@@ -193,21 +307,25 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
         />
       )}
       <div className="flex items-center gap-2">
-        <select
-          className="rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
-          value={logService ?? ""}
-          onChange={(e) => setLogService(e.target.value || undefined)}
-        >
-          <option value="">All services</option>
+        <div className="flex items-center gap-1">
+          <button
+            className={`rounded px-2 py-1 text-sm ${!logService ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+            onClick={() => setLogService(undefined)}
+            title="Show logs from all services"
+          >
+            All ({logCounts[""] ?? 0})
+          </button>
           {services.map((s) => (
-            <option
+            <button
               key={s.service}
-              value={s.service}
+              className={`rounded px-2 py-1 text-sm ${logService === s.service ? "bg-slate-700 text-white" : "bg-slate-100 text-slate-700 hover:bg-slate-200"}`}
+              onClick={() => setLogService(s.service)}
+              title={`Show logs from ${s.service}`}
             >
-              {s.service}
-            </option>
+              {s.service} ({logCounts[s.service] ?? 0})
+            </button>
           ))}
-        </select>
+        </div>
         <input
           className="w-48 rounded border border-slate-300 px-2 py-1 text-sm text-slate-900"
           placeholder="Filter (substring)"
@@ -237,16 +355,41 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
           />
           Auto-scroll
         </label>
+        {logState !== "idle" && (
+          <span className="text-xs text-slate-600">
+            Logs: {logState === "connected" ? "live" : logState === "reconnecting" ? "reconnecting…" : "stopped"}
+          </span>
+        )}
         <button
           className="rounded px-3 py-1 text-slate-700 hover:bg-slate-100"
-          onClick={() => setLogs("")}
+          onClick={() => {
+            setLogBuffer([]);
+            setLogCounts((_prev) => {
+              const next: Record<string, number> = { "": 0 };
+              for (const s of services) next[s.service] = 0;
+              return next;
+            });
+          }}
         >
           Clear
         </button>
+        <button
+          className="rounded px-3 py-1 text-slate-700 hover:bg-slate-100"
+          onClick={async () => {
+            try {
+              const content = logBuffer.join("\n");
+              const res = await composeLogsExport({ deploymentId, service: logService, content });
+              setMessage(`Exported logs to ${res.filePath}`);
+            } catch (e) {
+              setMessage(e instanceof Error ? e.message : "Failed to export logs");
+            }
+          }}
+        >
+          Export
+        </button>
       </div>
       <div className="h-48 overflow-auto rounded border border-slate-200 bg-black p-2 font-mono text-xs text-slate-100">
-        {logs
-          .split(/\n/)
+        {logBuffer
           .filter((line) => (logFilter ? line.toLowerCase().includes(logFilter.toLowerCase()) : true))
           .map((line, idx) => (
             <div

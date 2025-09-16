@@ -8,6 +8,8 @@ import type {
   ComposeDownResponse,
   ComposeGenerateRequest,
   ComposeGenerateResponse,
+  ComposeLogsExportRequest,
+  ComposeLogsExportResponse,
   ComposeLogsStartRequest,
   ComposeLogsStartResponse,
   ComposeLogsStopRequest,
@@ -146,6 +148,11 @@ export async function composeLogsStart(req: ComposeLogsStartRequest): Promise<Co
 export async function composeLogsStop(req: ComposeLogsStopRequest): Promise<ComposeLogsStopResponse> {
   if (!window.compose) throw new Error("Compose API is not available in preload");
   return window.compose.logsStop(req);
+}
+
+export async function composeLogsExport(req: ComposeLogsExportRequest): Promise<ComposeLogsExportResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.logsExport(req);
 }
 
 export async function composeStatusStart(req: ComposeStatusStartRequest): Promise<ComposeStatusStartResponse> {

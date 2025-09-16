@@ -290,4 +290,63 @@ describe("compose IPC", () => {
     expect(stopped.stopped).toBe(true);
     vi.useRealTimers();
   });
+
+  it("compose:logsStart emits logsData, logsError, and logsClosed", async () => {
+    const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
+
+    // Capture events sent by the handler
+    const events: { channel: string; payload: unknown }[] = [];
+    const mockEvent = {
+      sender: { send: (channel: string, payload: unknown) => events.push({ channel, payload }) },
+    } as unknown as { sender: { send: (channel: string, payload: unknown) => void } };
+
+    // Provide a controllable emitter for runDockerStream
+    const { EventEmitter } = await import("node:events");
+    const emitter = new EventEmitter() as unknown as typeof EventEmitter.prototype & { cancel: () => void };
+    (emitter as typeof EventEmitter.prototype & { cancel: () => void }).cancel = () => void 0;
+    vi.spyOn(dockerCli, "runDockerStream").mockReturnValue(
+      emitter as unknown as ReturnType<typeof dockerCli.runDockerStream>
+    );
+
+    const startHandler = handlers.get(ComposeChannels.logsStart);
+    if (!startHandler) throw new Error("logsStart handler not registered");
+    const { subscriptionId } = (await startHandler(mockEvent, { deploymentId: dep.id })) as { subscriptionId: string };
+    expect(typeof subscriptionId).toBe("string");
+
+    // Emit events from stream
+    (emitter as unknown as { emit: (evt: string, ...args: unknown[]) => boolean }).emit("data", "line one\nline two\n");
+    (emitter as unknown as { emit: (evt: string, ...args: unknown[]) => boolean }).emit("error", new Error("boom"));
+    (emitter as unknown as { emit: (evt: string, ...args: unknown[]) => boolean }).emit("close", 0);
+
+    // Validate we saw logsData, logsError, logsClosed for the same subscription
+    const dataEvt = events.find((e) => e.channel === "compose:logsData");
+    const errEvt = events.find((e) => e.channel === "compose:logsError");
+    const closeEvt = events.find((e) => e.channel === "compose:logsClosed");
+    expect(Boolean(dataEvt)).toBe(true);
+    expect(Boolean(errEvt)).toBe(true);
+    expect(Boolean(closeEvt)).toBe(true);
+    if (!dataEvt || !errEvt || !closeEvt) throw new Error("expected log events");
+    const sd = (dataEvt.payload as { subscriptionId?: string }).subscriptionId;
+    const se = (errEvt.payload as { subscriptionId?: string }).subscriptionId;
+    const sc = (closeEvt.payload as { subscriptionId?: string }).subscriptionId;
+    expect(sd).toBe(subscriptionId);
+    expect(se).toBe(subscriptionId);
+    expect(sc).toBe(subscriptionId);
+  });
+
+  it("compose:logsExport writes file under deployment logs directory", async () => {
+    const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
+    await updateDeployment(dep.id, { asterisk: DEFAULT_ASTERISK_CONFIG });
+
+    const res = (await invoke(ComposeChannels.logsExport, {
+      deploymentId: dep.id,
+      service: `${dep.slug}-asterisk`,
+      content: "hello\nworld\n",
+    })) as { filePath: string };
+
+    expect(res.filePath.includes(path.sep + "logs" + path.sep)).toBe(true);
+    expect(fs.existsSync(res.filePath)).toBe(true);
+    const content = fs.readFileSync(res.filePath, "utf8");
+    expect(content.includes("hello")).toBe(true);
+  });
 });

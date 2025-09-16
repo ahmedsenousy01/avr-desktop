@@ -185,7 +185,28 @@ export function registerComposeIpcHandlers(): void {
     return { services: statuses };
   });
 
-  const logStreams = new Map<string, { cancel: () => void }>();
+  const LOG_BUFFER_MAX_LINES = 2000;
+  const logStreams = new Map<string, { cancel: () => void; buffer: string[]; pendingPartial?: string }>();
+
+  function appendToRing(entry: { buffer: string[]; pendingPartial?: string }, chunkText: string): void {
+    const text = (entry.pendingPartial ? entry.pendingPartial : "") + chunkText;
+    const hasTrailingNewline = text.endsWith("\n");
+    const parts = text.split(/\n/);
+    const completeLines = hasTrailingNewline ? parts : parts.slice(0, -1);
+    for (const line of completeLines) {
+      if (line.length === 0) {
+        entry.buffer.push("");
+      } else {
+        entry.buffer.push(line);
+      }
+    }
+    // keep last partial if there is one
+    entry.pendingPartial = hasTrailingNewline ? undefined : parts[parts.length - 1];
+    // trim to max lines
+    if (entry.buffer.length > LOG_BUFFER_MAX_LINES) {
+      entry.buffer.splice(0, entry.buffer.length - LOG_BUFFER_MAX_LINES);
+    }
+  }
   function genId(): string {
     return `log_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`;
   }
@@ -201,9 +222,16 @@ export function registerComposeIpcHandlers(): void {
       if (parsed.service) args.push(parsed.service);
       const stream = runDockerStream(args, { cwd: depDir, timeoutMs: 0 });
       const id = genId();
-      logStreams.set(id, { cancel: () => stream.cancel() });
+      const ring = { cancel: () => stream.cancel(), buffer: [] as string[] };
+      logStreams.set(id, ring);
       stream.on("data", (chunk) => {
-        event.sender.send(ComposeEventChannels.logsData, { subscriptionId: id, chunk: String(chunk) });
+        const text = String(chunk);
+        appendToRing(ring, text);
+        event.sender.send(ComposeEventChannels.logsData, { subscriptionId: id, chunk: text });
+      });
+      stream.on("error", (err) => {
+        const message = err instanceof Error ? err.message : String(err);
+        event.sender.send(ComposeEventChannels.logsError, { subscriptionId: id, message });
       });
       stream.on("close", (code: number) => {
         event.sender.send(ComposeEventChannels.logsClosed, { subscriptionId: id, exitCode: code });
@@ -222,6 +250,27 @@ export function registerComposeIpcHandlers(): void {
     entry.cancel();
     logStreams.delete(parsed.subscriptionId);
     return { stopped: true };
+  });
+
+  ipcMain.handle(ComposeChannels.logsExport, async (_event, req: unknown): Promise<{ filePath: string }> => {
+    const parsed = z
+      .object({ deploymentId: z.string(), service: z.string().optional(), content: z.string() })
+      .parse(req);
+
+    const depDir = findDeploymentDirById(parsed.deploymentId);
+    if (!depDir) throw new Error("Deployment not found");
+    const logsDir = path.join(depDir, "logs");
+    try {
+      if (!fs.existsSync(logsDir)) fs.mkdirSync(logsDir, { recursive: true });
+      const ts = new Date().toISOString().replace(/[:.]/g, "-");
+      const base = parsed.service ? `logs-${parsed.service}-${ts}.log` : `logs-all-${ts}.log`;
+      const filePath = path.join(logsDir, base);
+      fs.writeFileSync(filePath, parsed.content, "utf8");
+      return { filePath };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      throw new Error(`Failed to export logs: ${message}`);
+    }
   });
 
   // Status polling subscriptions (task 3.3)

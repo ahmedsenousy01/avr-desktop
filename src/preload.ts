@@ -52,6 +52,7 @@ const compose: ComposeApi = {
   status: (req) => ipcRenderer.invoke(ComposeChannels.status, req),
   logsStart: (req) => ipcRenderer.invoke(ComposeChannels.logsStart, req),
   logsStop: (req) => ipcRenderer.invoke(ComposeChannels.logsStop, req),
+  logsExport: (req) => ipcRenderer.invoke(ComposeChannels.logsExport, req),
   statusStart: (req) => ipcRenderer.invoke(ComposeChannels.statusStart, req),
   statusStop: (req) => ipcRenderer.invoke(ComposeChannels.statusStop, req),
 };
@@ -64,4 +65,6 @@ contextBridge.exposeInMainWorld("composeEvents", {
     ipcRenderer.on(ComposeEventChannels.logsData, (_e, payload) => cb(payload)),
   onLogsClosed: (cb: (payload: unknown) => void) =>
     ipcRenderer.on(ComposeEventChannels.logsClosed, (_e, payload) => cb(payload)),
+  onLogsError: (cb: (payload: unknown) => void) =>
+    ipcRenderer.on(ComposeEventChannels.logsError, (_e, payload) => cb(payload)),
 });

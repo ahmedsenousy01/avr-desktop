@@ -140,14 +140,16 @@ describe("compose-writer", () => {
       name: "Snapshot Modular",
       providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
     });
-    const { yaml } = buildComposeObject(dep, providers, DEFAULT_ASTERISK_CONFIG);
+    const fixed = { ...dep, slug: "snapshot-modular" };
+    const { yaml } = buildComposeObject(fixed, providers, DEFAULT_ASTERISK_CONFIG);
     expect(yaml).toMatchSnapshot();
   });
 
   it("produces stable YAML snapshot for sts selection", () => {
     const providers = makeProviders();
     const dep = createDeployment({ type: "sts", name: "Snapshot STS", providers: { sts: "openai-realtime" } });
-    const { yaml } = buildComposeObject(dep, providers, DEFAULT_ASTERISK_CONFIG);
+    const fixed = { ...dep, slug: "snapshot-sts" };
+    const { yaml } = buildComposeObject(fixed, providers, DEFAULT_ASTERISK_CONFIG);
     expect(yaml).toMatchSnapshot();
   });
 });

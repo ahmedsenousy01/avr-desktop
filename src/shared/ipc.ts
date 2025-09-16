@@ -221,6 +221,7 @@ export const ComposeChannels = {
   status: "compose:status",
   logsStart: "compose:logsStart",
   logsStop: "compose:logsStop",
+  logsExport: "compose:logsExport",
   statusStart: "compose:statusStart",
   statusStop: "compose:statusStop",
 } as const;
@@ -242,6 +243,7 @@ export type ComposeApi = {
   status: (req: ComposeGenerateRequest) => Promise<ComposeStatusResponse>;
   logsStart: (req: ComposeLogsStartRequest) => Promise<ComposeLogsStartResponse>;
   logsStop: (req: ComposeLogsStopRequest) => Promise<ComposeLogsStopResponse>;
+  logsExport: (req: ComposeLogsExportRequest) => Promise<ComposeLogsExportResponse>;
   statusStart: (req: ComposeStatusStartRequest) => Promise<ComposeStatusStartResponse>;
   statusStop: (req: ComposeStatusStopRequest) => Promise<ComposeStatusStopResponse>;
 };
@@ -291,6 +293,7 @@ export const ComposeEventChannels = {
   statusUpdate: "compose:statusUpdate",
   logsData: "compose:logsData",
   logsClosed: "compose:logsClosed",
+  logsError: "compose:logsError",
 } as const;
 
 export interface ComposeLogsStartRequest {
@@ -310,6 +313,18 @@ export interface ComposeLogsStopResponse {
   stopped: boolean;
 }
 
+export interface ComposeLogsExportRequest {
+  deploymentId: string;
+  /** Optional: service name; if omitted, exports aggregated logs */
+  service?: string;
+  /** Log content to write */
+  content: string;
+}
+
+export interface ComposeLogsExportResponse {
+  filePath: string;
+}
+
 export interface ComposeLogsDataEvent {
   subscriptionId: string;
   chunk: string;
@@ -318,4 +333,9 @@ export interface ComposeLogsDataEvent {
 export interface ComposeLogsClosedEvent {
   subscriptionId: string;
   exitCode: number;
+}
+
+export interface ComposeLogsErrorEvent {
+  subscriptionId: string;
+  message: string;
 }
