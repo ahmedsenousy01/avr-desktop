@@ -112,4 +112,52 @@ describe("preflight IPC", () => {
       fs.rmSync(path.join(root, "deployments", item2.slug), { recursive: true, force: true });
     }
   });
+
+  it("fix updates deployment asterisk fields for docker ports conflicts", async () => {
+    const created = (await invoke(DeploymentsChannels.createFromSelection, {
+      type: "sts",
+      providers: { sts: "openai-realtime" },
+      name: "PF3",
+    })) as { id: string };
+
+    // ensure fix handler is registered
+    if (!handlers.get(PreflightChannels.fix)) throw new Error("No fix handler");
+
+    // Write a fake preflight.json with a docker ports conflict
+    const list = (await invoke(DeploymentsChannels.list)) as { deployments: { id: string; slug: string }[] };
+    const item = list.deployments.find((d) => d.id === created.id);
+    if (!item) throw new Error("Not found");
+    const root = path.join(os.tmpdir(), "avr-workspace");
+    const dir = path.join(root, "deployments", item.slug);
+    fs.mkdirSync(dir, { recursive: true });
+    const result = {
+      items: [
+        {
+          id: "docker:ports:conflicts",
+          title: "Docker port mapping conflicts detected",
+          severity: "fail",
+          message: "conflict",
+          data: {
+            sipPort: 5060,
+            rtpRange: { start: 10000, end: 10010 },
+            conflicts: [{ container: "x", hostPort: 5060, protocol: "tcp" }],
+          },
+        },
+      ],
+      summary: { total: 1, pass: 0, warn: 0, fail: 1, startedAt: 0, finishedAt: 0, durationMs: 0, overall: "fail" },
+    };
+    fs.writeFileSync(path.join(dir, "preflight.json"), JSON.stringify(result, null, 2), "utf8");
+
+    const res = (await invoke(PreflightChannels.fix, {
+      deploymentId: created.id,
+      itemId: "docker:ports:conflicts",
+    })) as { fixed: boolean; applied?: { asterisk?: { sipPort?: number; rtpStart?: number; rtpEnd?: number } } };
+    expect(res.fixed).toBe(true);
+    expect(res.applied?.asterisk?.sipPort).toBeDefined();
+    expect(res.applied?.asterisk?.rtpStart).toBeDefined();
+    expect(res.applied?.asterisk?.rtpEnd).toBeDefined();
+
+    // cleanup
+    fs.rmSync(dir, { recursive: true, force: true });
+  });
 });

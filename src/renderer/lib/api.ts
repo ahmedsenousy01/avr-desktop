@@ -32,6 +32,8 @@ import type {
   DeploymentsUpdateRequest,
   DeploymentsUpdateResponse,
   PreflightApi,
+  PreflightFixRequest,
+  PreflightFixResponse,
   PreflightLastRequest,
   PreflightLastResponse,
   PreflightRunRequest,
@@ -118,6 +120,11 @@ export async function preflightRun(req: PreflightRunRequest): Promise<PreflightR
 export async function preflightLast(req: PreflightLastRequest): Promise<PreflightLastResponse> {
   if (!window.preflight) throw new Error("Preflight API is not available in preload");
   return window.preflight.last(req);
+}
+
+export async function preflightFix(req: PreflightFixRequest): Promise<PreflightFixResponse> {
+  if (!window.preflight) throw new Error("Preflight API is not available in preload");
+  return window.preflight.fix(req);
 }
 
 export async function composeGenerate(req: ComposeGenerateRequest): Promise<ComposeGenerateResponse> {

@@ -41,6 +41,7 @@ contextBridge.exposeInMainWorld("asterisk", asterisk);
 const preflight: PreflightApi = {
   run: (req) => ipcRenderer.invoke(PreflightChannels.run, req),
   last: (req) => ipcRenderer.invoke(PreflightChannels.last, req),
+  fix: (req) => ipcRenderer.invoke(PreflightChannels.fix, req),
 };
 
 contextBridge.exposeInMainWorld("preflight", preflight);

@@ -1,8 +1,13 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import type { PreflightLastResponse, PreflightResult, PreflightRunResponse } from "@shared/ipc";
 import type { PreflightItem } from "@shared/types/preflight";
-import { preflightLast, preflightRun } from "@renderer/lib/api";
+import { AsteriskRtpValidationRemediation } from "@renderer/components/preflight-remediations/AsteriskRtpValidationRemediation";
+import { DockerNameCollisionRemediation } from "@renderer/components/preflight-remediations/DockerNameCollisionRemediation";
+import { DockerPortsConflictRemediation } from "@renderer/components/preflight-remediations/DockerPortsConflictRemediation";
+import { DockerUnavailableRemediation } from "@renderer/components/preflight-remediations/DockerUnavailableRemediation";
+import { HostPortInUseRemediation } from "@renderer/components/preflight-remediations/HostPortInUseRemediation";
+import { preflightFix, preflightLast, preflightRun } from "@renderer/lib/api";
 
 type Severity = "pass" | "warn" | "fail";
 
@@ -35,6 +40,12 @@ export const PreflightPanel: React.FC<PreflightPanelProps> = ({ deploymentId, on
   const [showDetails, setShowDetails] = useState<boolean>(false);
   const [lastResult, setLastResult] = useState<PreflightResult | null>(null);
 
+  // Keep a stable reference to onResult to avoid re-creating callbacks on each render
+  const onResultRef = useRef<typeof onResult>(onResult);
+  useEffect(() => {
+    onResultRef.current = onResult;
+  }, [onResult]);
+
   const groups = useMemo(() => groupBySeverity(items), [items]);
   const hasAny = items.length > 0;
 
@@ -48,7 +59,7 @@ export const PreflightPanel: React.FC<PreflightPanelProps> = ({ deploymentId, on
         setLastRunAt(res.result.summary.finishedAt);
         setLastDurationMs(res.result.summary.durationMs);
         setLastResult(res.result);
-        onResult?.(res.result);
+        onResultRef.current?.(res.result);
       } else {
         setItems([]);
         setLastRunAt(null);
@@ -60,7 +71,7 @@ export const PreflightPanel: React.FC<PreflightPanelProps> = ({ deploymentId, on
     } finally {
       setLoading(false);
     }
-  }, [deploymentId, onResult]);
+  }, [deploymentId]);
 
   useEffect(() => {
     void loadLast();
@@ -75,13 +86,13 @@ export const PreflightPanel: React.FC<PreflightPanelProps> = ({ deploymentId, on
       setLastRunAt(res.result.summary.finishedAt);
       setLastDurationMs(res.result.summary.durationMs);
       setLastResult(res.result);
-      onResult?.(res.result);
+      onResultRef.current?.(res.result);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Failed to run preflight");
     } finally {
       setRunning(false);
     }
-  }, [deploymentId, onResult]);
+  }, [deploymentId]);
 
   const onCopy = useCallback(async () => {
     const text = JSON.stringify(
@@ -146,6 +157,73 @@ export const PreflightPanel: React.FC<PreflightPanelProps> = ({ deploymentId, on
                 >
                   <div className="font-medium">{it.title}</div>
                   <div className="text-red-900">{it.message}</div>
+                  {it.id.startsWith("asterisk:rtp:") && (
+                    <div className="mt-2">
+                      <a
+                        href={`/asterisk?id=${deploymentId}`}
+                        className="inline-block rounded bg-indigo-600 px-2 py-1 text-white hover:bg-indigo-700"
+                      >
+                        Open Asterisk settings
+                      </a>
+                      <button
+                        type="button"
+                        className="ml-2 inline-block rounded bg-emerald-600 px-2 py-1 text-white hover:bg-emerald-700"
+                        onClick={async () => {
+                          try {
+                            await preflightFix({ deploymentId, itemId: it.id });
+                            await onRun();
+                          } catch {}
+                        }}
+                        disabled={running}
+                      >
+                        Auto-fix
+                      </button>
+                    </div>
+                  )}
+                  {it.id === "docker:available:nok" && (
+                    <DockerUnavailableRemediation
+                      onRetry={onRun}
+                      running={running}
+                      message={it.message}
+                    />
+                  )}
+                  {it.id === "docker:ports:conflicts" && (
+                    <DockerPortsConflictRemediation
+                      deploymentId={deploymentId}
+                      item={it}
+                      running={running}
+                      onRerun={onRun}
+                    />
+                  )}
+                  {it.id.startsWith("asterisk:rtp:") && (
+                    <AsteriskRtpValidationRemediation
+                      deploymentId={deploymentId}
+                      item={it}
+                      running={running}
+                      onRerun={onRun}
+                    />
+                  )}
+                  {it.id.startsWith("port:tcp:127.0.0.1:") && (
+                    <HostPortInUseRemediation port={Number(it.data && (it.data as { port?: number }).port) || 0} />
+                  )}
+                  {it.id === "docker:names:collisions" && (
+                    <DockerNameCollisionRemediation
+                      deploymentId={deploymentId}
+                      item={it}
+                      running={running}
+                      onRerun={onRun}
+                    />
+                  )}
+                  {it.id.startsWith("provider:") && it.id.endsWith(":apiKey") && (
+                    <div className="mt-2">
+                      <a
+                        href={`/providers`}
+                        className="inline-block rounded bg-indigo-600 px-2 py-1 text-white hover:bg-indigo-700"
+                      >
+                        Open Providers settings
+                      </a>
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

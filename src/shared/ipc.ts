@@ -172,6 +172,7 @@ export type AsteriskApi = {
 export const PreflightChannels = {
   run: "preflight:run",
   last: "preflight:last",
+  fix: "preflight:fix",
 } as const;
 
 export interface PreflightRunRequest {
@@ -211,7 +212,25 @@ export interface PreflightLastResponse {
 export type PreflightApi = {
   run: (req: PreflightRunRequest) => Promise<PreflightRunResponse>;
   last: (req: PreflightLastRequest) => Promise<PreflightLastResponse>;
+  fix: (req: PreflightFixRequest) => Promise<PreflightFixResponse>;
 };
+
+export interface PreflightFixRequest {
+  /** Deployment id to fix based on last preflight results */
+  deploymentId: string;
+  /** The preflight item id to target (e.g., "docker:ports:conflicts") */
+  itemId: string;
+}
+
+export interface PreflightFixResponse {
+  fixed: boolean;
+  message?: string;
+  /** Optional: applied changes summary */
+  applied?: {
+    asterisk?: Partial<AsteriskConfig>;
+    removedDocker?: { containers: string[]; networks: string[]; volumes: string[] };
+  };
+}
 
 // Compose IPC channels
 export const ComposeChannels = {

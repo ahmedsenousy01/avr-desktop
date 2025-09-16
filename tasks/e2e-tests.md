@@ -157,6 +157,34 @@ Below scenarios are structured as high-level flows; implement with Playwright st
 - Host port availability
   - Occupy SIP port or a sample in RTP range; Preflight shows fail/warn accordingly.
 
+#### Remediation & Auto-fix (Preflight)
+
+- Docker unavailable (retry)
+  - With Docker daemon stopped, run Preflight.
+  - Expect failure item "Docker is not available" plus remediation with "Retry Preflight".
+  - Start Docker, click Retry Preflight, expect pass item "Docker is available".
+
+- Docker port mapping conflicts (auto-fix)
+  - Create a running container mapping the planned SIP port or a port in the RTP range.
+  - Run Preflight; expect failure item with list of conflicts, suggested SIP/RTP values, and buttons.
+  - Click "Auto-fix"; verify Preflight re-runs and shows "No Docker port mapping conflicts".
+  - Optionally navigate via "Change ports in Asterisk settings" and verify new values are persisted.
+
+- Docker name collisions (cleanup)
+  - Create Docker resources (container/network/volume) with the deployment slug prefix.
+  - Run Preflight; expect collisions item listing the resources and a cleanup button.
+  - Click "Clean up matching Docker resources"; verify Preflight re-runs and shows no collisions.
+
+- Host port in use (guidance)
+  - Bind a local process on SIP or a sampled RTP port.
+  - Run Preflight; expect remediation panel with PowerShell guidance to identify the owning process.
+  - Stop the process or adjust ports; re-run Preflight to see passes/warns cleared.
+
+- Provider API keys missing (navigation)
+  - Ensure a required provider key is empty; run Preflight.
+  - Expect failure item with "Open Providers settings"; click and add the key.
+  - Re-run Preflight; item should pass.
+
 ### 1.5 Compose Generation and Control
 
 - Deterministic compose

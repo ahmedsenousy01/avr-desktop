@@ -2,38 +2,38 @@
 
 exports[`compose-writer > produces stable YAML snapshot for modular selection 1`] = `
 "networks:
-  snapshot-modular-mfmka3:
+  snapshot-modular:
     driver: "bridge"
-    name: "snapshot-modular-mfmka3"
+    name: "snapshot-modular"
 services:
-  snapshot-modular-mfmka3-ami:
-    container_name: "snapshot-modular-mfmka3-ami"
+  snapshot-modular-ami:
+    container_name: "snapshot-modular-ami"
     image: "agentvoiceresponse/avr-ami"
     networks:
-      snapshot-modular-mfmka3:
+      snapshot-modular:
         aliases:
           - "ami"
-          - "snapshot-modular-mfmka3-ami"
+          - "snapshot-modular-ami"
     restart: "always"
-  snapshot-modular-mfmka3-asr-deepgram:
-    container_name: "snapshot-modular-mfmka3-asr-deepgram"
+  snapshot-modular-asr-deepgram:
+    container_name: "snapshot-modular-asr-deepgram"
     environment:
       DEEPGRAM_API_KEY: "sk-test-deepgram"
     image: "agentvoiceresponse/avr-asr-deepgram"
     networks:
-      snapshot-modular-mfmka3:
+      snapshot-modular:
         aliases:
           - "asr"
-          - "snapshot-modular-mfmka3-asr-deepgram"
+          - "snapshot-modular-asr-deepgram"
     restart: "always"
-  snapshot-modular-mfmka3-asterisk:
-    container_name: "snapshot-modular-mfmka3-asterisk"
+  snapshot-modular-asterisk:
+    container_name: "snapshot-modular-asterisk"
     image: "agentvoiceresponse/avr-asterisk"
     networks:
-      snapshot-modular-mfmka3:
+      snapshot-modular:
         aliases:
           - "asterisk"
-          - "snapshot-modular-mfmka3-asterisk"
+          - "snapshot-modular-asterisk"
     ports:
       - "5038:5038"
       - "5060:5060"
@@ -46,35 +46,35 @@ services:
       - "./asterisk/extensions.conf:/etc/asterisk/my_extensions.conf:ro"
       - "./asterisk/queues.conf:/etc/asterisk/my_queues.conf:ro"
       - "./asterisk/ari.conf:/etc/asterisk/my_ari.conf:ro"
-  snapshot-modular-mfmka3-core:
-    container_name: "snapshot-modular-mfmka3-core"
+  snapshot-modular-core:
+    container_name: "snapshot-modular-core"
     image: "agentvoiceresponse/avr-core"
     networks:
-      snapshot-modular-mfmka3:
+      snapshot-modular:
         aliases:
           - "core"
-          - "snapshot-modular-mfmka3-core"
+          - "snapshot-modular-core"
     restart: "always"
-  snapshot-modular-mfmka3-llm-openai:
-    container_name: "snapshot-modular-mfmka3-llm-openai"
+  snapshot-modular-llm-openai:
+    container_name: "snapshot-modular-llm-openai"
     environment:
       OPENAI_API_KEY: "sk-test-openai"
     image: "agentvoiceresponse/avr-llm-openai"
     networks:
-      snapshot-modular-mfmka3:
+      snapshot-modular:
         aliases:
           - "llm"
-          - "snapshot-modular-mfmka3-llm-openai"
+          - "snapshot-modular-llm-openai"
     restart: "always"
-  snapshot-modular-mfmka3-tts-elevenlabs:
-    container_name: "snapshot-modular-mfmka3-tts-elevenlabs"
+  snapshot-modular-tts-elevenlabs:
+    container_name: "snapshot-modular-tts-elevenlabs"
     environment:
       ELEVENLABS_API_KEY: "sk-test-elevenlabs"
     networks:
-      snapshot-modular-mfmka3:
+      snapshot-modular:
         aliases:
           - "tts"
-          - "snapshot-modular-mfmka3-tts-elevenlabs"
+          - "snapshot-modular-tts-elevenlabs"
     restart: "always"
 version: "3.9"
 "
@@ -82,27 +82,27 @@ version: "3.9"
 
 exports[`compose-writer > produces stable YAML snapshot for sts selection 1`] = `
 "networks:
-  snapshot-sts-mfmka3:
+  snapshot-sts:
     driver: "bridge"
-    name: "snapshot-sts-mfmka3"
+    name: "snapshot-sts"
 services:
-  snapshot-sts-mfmka3-ami:
-    container_name: "snapshot-sts-mfmka3-ami"
+  snapshot-sts-ami:
+    container_name: "snapshot-sts-ami"
     image: "agentvoiceresponse/avr-ami"
     networks:
-      snapshot-sts-mfmka3:
+      snapshot-sts:
         aliases:
           - "ami"
-          - "snapshot-sts-mfmka3-ami"
+          - "snapshot-sts-ami"
     restart: "always"
-  snapshot-sts-mfmka3-asterisk:
-    container_name: "snapshot-sts-mfmka3-asterisk"
+  snapshot-sts-asterisk:
+    container_name: "snapshot-sts-asterisk"
     image: "agentvoiceresponse/avr-asterisk"
     networks:
-      snapshot-sts-mfmka3:
+      snapshot-sts:
         aliases:
           - "asterisk"
-          - "snapshot-sts-mfmka3-asterisk"
+          - "snapshot-sts-asterisk"
     ports:
       - "5038:5038"
       - "5060:5060"
@@ -115,25 +115,25 @@ services:
       - "./asterisk/extensions.conf:/etc/asterisk/my_extensions.conf:ro"
       - "./asterisk/queues.conf:/etc/asterisk/my_queues.conf:ro"
       - "./asterisk/ari.conf:/etc/asterisk/my_ari.conf:ro"
-  snapshot-sts-mfmka3-core:
-    container_name: "snapshot-sts-mfmka3-core"
+  snapshot-sts-core:
+    container_name: "snapshot-sts-core"
     image: "agentvoiceresponse/avr-core"
     networks:
-      snapshot-sts-mfmka3:
+      snapshot-sts:
         aliases:
           - "core"
-          - "snapshot-sts-mfmka3-core"
+          - "snapshot-sts-core"
     restart: "always"
-  snapshot-sts-mfmka3-sts-openai:
-    container_name: "snapshot-sts-mfmka3-sts-openai"
+  snapshot-sts-sts-openai:
+    container_name: "snapshot-sts-sts-openai"
     environment:
       OPENAI_API_KEY: "sk-test-openai"
     image: "agentvoiceresponse/avr-sts-openai"
     networks:
-      snapshot-sts-mfmka3:
+      snapshot-sts:
         aliases:
           - "sts"
-          - "snapshot-sts-mfmka3-sts-openai"
+          - "snapshot-sts-sts-openai"
     restart: "always"
 version: "3.9"
 "
