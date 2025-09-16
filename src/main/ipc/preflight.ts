@@ -92,7 +92,7 @@ export function registerPreflightIpcHandlers(): void {
       // Persist changes
       const dir = findDeploymentDirById(parsed.deploymentId);
       if (!dir) throw new Error("Deployment not found");
-      const { readFileSync, writeFileSync } = await import("node:fs");
+      const { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } = await import("node:fs");
       const { join } = await import("node:path");
       const file = join(dir, "deployment.json");
       const current = JSON.parse(readFileSync(file, "utf8"));
@@ -106,7 +106,11 @@ export function registerPreflightIpcHandlers(): void {
         },
         updatedAt: new Date().toISOString(),
       };
-      writeFileSync(file, JSON.stringify(next, null, 2), "utf8");
+      // Atomic write to avoid readers seeing partial JSON
+      const tmp = join(dir, `.deployment.json.tmp-${process.pid}-${Date.now()}`);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+      renameSync(tmp, file);
       return {
         fixed: true,
         applied: { asterisk: { sipPort: suggestedSip, rtpStart: suggestedRtp.start, rtpEnd: suggestedRtp.end } },
@@ -118,7 +122,7 @@ export function registerPreflightIpcHandlers(): void {
       // Simple normalization: ensure rtpStart < rtpEnd and no overlap with SIP by shifting RTP up
       const dir = findDeploymentDirById(parsed.deploymentId);
       if (!dir) throw new Error("Deployment not found");
-      const { readFileSync, writeFileSync } = await import("node:fs");
+      const { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } = await import("node:fs");
       const { join } = await import("node:path");
       const file = join(dir, "deployment.json");
       const current = JSON.parse(readFileSync(file, "utf8"));
@@ -140,7 +144,10 @@ export function registerPreflightIpcHandlers(): void {
         asterisk: { ...(current.asterisk ?? {}), rtpStart: start, rtpEnd: end },
         updatedAt: new Date().toISOString(),
       };
-      writeFileSync(file, JSON.stringify(next, null, 2), "utf8");
+      const tmp = join(dir, `.deployment.json.tmp-${process.pid}-${Date.now()}`);
+      if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+      writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+      renameSync(tmp, file);
       return { fixed: true, applied: { asterisk: { rtpStart: start, rtpEnd: end } }, message: "Adjusted RTP range" };
     }
 
@@ -152,7 +159,7 @@ export function registerPreflightIpcHandlers(): void {
 
       const dir = findDeploymentDirById(parsed.deploymentId);
       if (!dir) throw new Error("Deployment not found");
-      const { readFileSync, writeFileSync } = await import("node:fs");
+      const { readFileSync, writeFileSync, renameSync, existsSync, mkdirSync } = await import("node:fs");
       const { join } = await import("node:path");
       const file = join(dir, "deployment.json");
       const current = JSON.parse(readFileSync(file, "utf8"));
@@ -174,7 +181,10 @@ export function registerPreflightIpcHandlers(): void {
           asterisk: { ...(current.asterisk ?? {}), sipPort: nextSip },
           updatedAt: new Date().toISOString(),
         };
-        writeFileSync(file, JSON.stringify(next, null, 2), "utf8");
+        const tmp = join(dir, `.deployment.json.tmp-${process.pid}-${Date.now()}`);
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+        renameSync(tmp, file);
         return {
           fixed: true,
           applied: { asterisk: { sipPort: nextSip } },
@@ -192,7 +202,10 @@ export function registerPreflightIpcHandlers(): void {
           asterisk: { ...(current.asterisk ?? {}), rtpStart: newStart, rtpEnd: newEnd },
           updatedAt: new Date().toISOString(),
         };
-        writeFileSync(file, JSON.stringify(next, null, 2), "utf8");
+        const tmp = join(dir, `.deployment.json.tmp-${process.pid}-${Date.now()}`);
+        if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+        writeFileSync(tmp, JSON.stringify(next, null, 2), "utf8");
+        renameSync(tmp, file);
         return {
           fixed: true,
           applied: { asterisk: { rtpStart: newStart, rtpEnd: newEnd } },

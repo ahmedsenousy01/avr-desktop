@@ -18,6 +18,17 @@ describe("AsteriskPage", () => {
     window.deployments = {
       createFromTemplate: vi.fn(async () => ({ id: "t", name: "t" })),
       createFromSelection: vi.fn(async () => ({ id: "s", name: "s" })),
+      get: vi.fn(async ({ id }) => {
+        const base = items.find((d) => d.id === id) ?? items[0];
+        return {
+          id: base.id,
+          name: base.name,
+          slug: base.slug,
+          type: base.type,
+          asterisk: undefined,
+          updatedAt: base.updatedAt,
+        };
+      }),
       list: vi.fn(async (): Promise<DeploymentsListResponse> => ({ deployments: items })),
       update: vi.fn(async ({ id, name }) => ({ id, name: name ?? "" })),
       duplicate: vi.fn(async ({ id, name }) => ({ id: id + "-copy", name: name ?? "Copy" })),

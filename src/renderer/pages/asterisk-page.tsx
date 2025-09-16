@@ -4,7 +4,7 @@ import type { DeploymentsListItem } from "@shared/ipc";
 import type { AsteriskConfig } from "@shared/types/asterisk";
 import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
 import { AsteriskEditor } from "@renderer/components/asterisk-editor";
-import { deploymentsList } from "@renderer/lib/api";
+import { deploymentsGet, deploymentsList } from "@renderer/lib/api";
 
 export function AsteriskPage() {
   const [loading, setLoading] = useState(true);
@@ -33,9 +33,21 @@ export function AsteriskPage() {
         setLoading(false);
       }
     })();
-  }, []);
+  }, [initialId]);
 
   const selected = useMemo(() => items.find((d) => d.id === selectedId), [items, selectedId]);
+
+  useEffect(() => {
+    (async () => {
+      if (!selected) return;
+      try {
+        const full = await deploymentsGet({ id: selected.id });
+        setConfig(full.asterisk ?? DEFAULT_ASTERISK_CONFIG);
+      } catch {
+        setConfig(DEFAULT_ASTERISK_CONFIG);
+      }
+    })();
+  }, [selected]);
 
   return (
     <div className="p-4">
@@ -70,10 +82,13 @@ export function AsteriskPage() {
         {selected && <div className="mt-1 text-xs text-gray-500">Editing: {selected.name}</div>}
       </div>
 
-      <AsteriskEditor
-        value={config}
-        onChange={setConfig}
-      />
+      {selected && (
+        <AsteriskEditor
+          value={config}
+          onChange={setConfig}
+          deploymentId={selected.id}
+        />
+      )}
     </div>
   );
 }

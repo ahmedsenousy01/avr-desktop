@@ -25,6 +25,7 @@ export const TEMPLATE_IDS = [
   "elevenlabs",
   "openai-realtime",
   "ultravox",
+  "gemini-sts",
   "n8n",
 ] as const;
 
@@ -122,6 +123,15 @@ export const TEMPLATE_REGISTRY: Readonly<Record<TemplateId, TemplateMeta>> = {
     tags: ["sts"],
     badges: ["STS"],
   },
+  "gemini-sts": {
+    id: "gemini-sts",
+    displayName: "Gemini Live (STS)",
+    stackType: "sts",
+    exampleCompose: "src/main/infra/examples/docker-compose-gemini.yml",
+    summary: "STS stack using Gemini Live Speech-to-Speech.",
+    tags: ["sts"],
+    badges: ["STS"],
+  },
   n8n: {
     id: "n8n",
     displayName: "n8n Integration",
@@ -161,7 +171,7 @@ export type DeploymentSkeleton =
       type: "sts";
       name?: string;
       providers: {
-        sts: "openai-realtime" | "ultravox";
+        sts: "openai-realtime" | "ultravox" | "gemini";
       };
     };
 
@@ -169,7 +179,10 @@ export function templateToDeployment(templateId: TemplateId, name?: string): Dep
   const meta = getTemplateMeta(templateId);
 
   if (meta.stackType === "sts") {
-    const sts = templateId as "openai-realtime" | "ultravox";
+    const sts = templateId as "openai-realtime" | "ultravox" | "gemini" | "gemini-sts";
+    if (sts === "gemini-sts") {
+      return { type: "sts", name, providers: { sts: "gemini" } };
+    }
     return { type: "sts", name, providers: { sts } };
   }
 
@@ -222,6 +235,7 @@ export const SERVICE_FRAGMENT_IDS = [
   // STS roles
   "sts-openai-realtime",
   "sts-ultravox",
+  "sts-gemini",
 ] as const;
 
 export type ServiceFragmentId = (typeof SERVICE_FRAGMENT_IDS)[number];
@@ -247,6 +261,7 @@ const LLM_TO_FRAGMENT: Readonly<Record<LLMProviderId, ServiceFragmentId>> = {
 const STS_TO_FRAGMENT: Readonly<Record<STSProviderId, ServiceFragmentId>> = {
   "openai-realtime": "sts-openai-realtime",
   ultravox: "sts-ultravox",
+  gemini: "sts-gemini",
 };
 
 /**

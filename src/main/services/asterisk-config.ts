@@ -12,7 +12,7 @@
  * Escaping:
  *  - Use \{{ and \}} in templates to output literal braces ({{ or }}) without triggering replacement.
  */
-import { promises as fs } from "node:fs";
+import { existsSync, promises as fs } from "node:fs";
 import path from "node:path";
 
 import type { AsteriskConfig } from "@shared/types/asterisk";
@@ -88,13 +88,34 @@ export function renderWithTokens(template: string, tokenMap: Record<string, stri
 const TEMPLATE_FILENAMES = ["ari.conf", "pjsip.conf", "extensions.conf", "manager.conf", "queues.conf"] as const;
 
 function getDefaultTemplatesDir(currentDir: string): string {
-  // From src/main/services -> ../infra/asterisk/conf
-  return path.resolve(currentDir, "../infra/asterisk/conf");
+  // Try build output first, then fall back to source paths during dev
+  const candidates = [
+    // When running the built main.js: .vite/build -> .vite/infra/asterisk/conf
+    path.resolve(currentDir, "../infra/asterisk/conf"),
+    // When running in dev (cwd = repo root)
+    path.resolve(process.cwd(), "src/main/infra/asterisk/conf"),
+    // From compiled dir up to repo root then src
+    path.resolve(currentDir, "../../src/main/infra/asterisk/conf"),
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate)) return candidate;
+    } catch {
+      // continue
+    }
+  }
+  // Default to the first candidate even if missing; downstream read will throw with context
+  return candidates[0];
 }
 
 async function readTemplateFile(sourceDir: string, filename: string): Promise<string> {
   const filePath = path.join(sourceDir, filename);
-  return fs.readFile(filePath, "utf8");
+  try {
+    return await fs.readFile(filePath, "utf8");
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    throw new Error(`Failed to read template '${filename}' from '${sourceDir}': ${message}`);
+  }
 }
 
 export async function renderAsteriskConfig(

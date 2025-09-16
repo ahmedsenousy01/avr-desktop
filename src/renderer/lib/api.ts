@@ -28,6 +28,8 @@ import type {
   DeploymentsDeleteResponse,
   DeploymentsDuplicateRequest,
   DeploymentsDuplicateResponse,
+  DeploymentsGetRequest,
+  DeploymentsGetResponse,
   DeploymentsListResponse,
   DeploymentsUpdateRequest,
   DeploymentsUpdateResponse,
@@ -90,6 +92,11 @@ export async function deploymentsCreateFromSelection(
     throw new Error("Deployments API is not available in preload");
   }
   return window.deployments.createFromSelection(req);
+}
+
+export async function deploymentsGet(req: { id: string }): Promise<DeploymentsGetResponse> {
+  if (!window.deployments) throw new Error("Deployments API is not available in preload");
+  return window.deployments.get(req as unknown as DeploymentsGetRequest);
 }
 
 export async function deploymentsList(): Promise<DeploymentsListResponse> {

@@ -23,6 +23,7 @@ const FRAGMENT_IMAGE: Partial<Record<ServiceFragmentId, string>> = {
   "llm-anthropic": "agentvoiceresponse/avr-llm-anthropic",
   "sts-openai-realtime": "agentvoiceresponse/avr-sts-openai",
   "sts-ultravox": "agentvoiceresponse/avr-sts-ultravox",
+  "sts-gemini": "agentvoiceresponse/avr-sts-gemini",
   // Note: tts-elevenlabs and llm-gemini images are not present in examples; omit to avoid guessing
 };
 
@@ -86,7 +87,6 @@ export function buildComposeObject(
   }
 
   const spec = sortKeysDeep({
-    version: "3.9",
     services,
     networks: {
       [networkName]: {
@@ -179,6 +179,8 @@ export function getServiceSuffixForFragment(fragmentId: ServiceFragmentId): stri
       return "sts-openai";
     case "sts-ultravox":
       return "sts-ultravox";
+    case "sts-gemini":
+      return "sts-gemini";
     default: {
       const neverCheck: never = fragmentId;
       throw new Error(`Unhandled fragment: ${String(neverCheck)}`);
@@ -246,6 +248,8 @@ export function getEnvForFragment(providers: Providers, fragmentId: ServiceFragm
       return withIfSet("ANTHROPIC_API_KEY", getProviderApiKey(providers, "anthropic"));
 
     case "llm-gemini":
+      return withIfSet("GEMINI_API_KEY", getProviderApiKey(providers, "gemini"));
+    case "sts-gemini":
       return withIfSet("GEMINI_API_KEY", getProviderApiKey(providers, "gemini"));
 
     case "asr-deepgram":

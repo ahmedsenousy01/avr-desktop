@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import type { AsteriskConfig } from "@shared/types/asterisk";
 import {
@@ -13,6 +13,8 @@ export interface AsteriskEditorProps {
   onChange?: (value: AsteriskConfig) => void;
   /** When provided, Save will write files to this directory via IPC */
   targetDir?: string;
+  /** When provided, Save will persist to deployment.json and render conf files via IPC */
+  deploymentId?: string;
 }
 
 export function AsteriskEditor(props: AsteriskEditorProps) {
@@ -44,6 +46,13 @@ export function AsteriskEditor(props: AsteriskEditorProps) {
     props.onChange?.(next);
     validateAll(next);
   }
+
+  // Keep local state in sync when parent-provided value changes (e.g., after navigation or external updates)
+  useEffect(() => {
+    const next = { ...DEFAULT_ASTERISK_CONFIG, ...props.value } as AsteriskConfig;
+    setConfig(next);
+    validateAll(next);
+  }, [props.value]);
 
   function toggleCodec(codec: (typeof SUPPORTED_CODECS)[number]) {
     const has = config.codecs.includes(codec);
@@ -77,7 +86,9 @@ export function AsteriskEditor(props: AsteriskEditorProps) {
     setIsBusy(true);
     try {
       const mod = await import("@renderer/lib/api");
-      if (props.targetDir) {
+      if (props.deploymentId) {
+        await mod.deploymentsUpdate({ id: props.deploymentId, asterisk: config });
+      } else if (props.targetDir) {
         await mod.asteriskRenderConfig({ config, targetDir: props.targetDir, preview: false });
       }
     } finally {

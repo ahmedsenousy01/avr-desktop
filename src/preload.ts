@@ -24,6 +24,7 @@ const deployments: DeploymentsApi = {
   createFromTemplate: (req) => ipcRenderer.invoke(DeploymentsChannels.createFromTemplate, req),
   createFromSelection: (req) => ipcRenderer.invoke(DeploymentsChannels.createFromSelection, req),
   list: () => ipcRenderer.invoke(DeploymentsChannels.list),
+  get: (req) => ipcRenderer.invoke(DeploymentsChannels.get, req),
   update: (req) => ipcRenderer.invoke(DeploymentsChannels.update, req),
   duplicate: (req) => ipcRenderer.invoke(DeploymentsChannels.duplicate, req),
   delete: (req) => ipcRenderer.invoke(DeploymentsChannels.delete, req),

@@ -2,12 +2,18 @@ import { ipcMain } from "electron";
 import { z } from "zod/v4";
 
 import type { TemplateId } from "@main/services/template-registry";
-import type { DeploymentsCreateFromSelectionResponse, DeploymentsCreateFromTemplateResponse } from "@shared/ipc";
+import type {
+  DeploymentsCreateFromSelectionResponse,
+  DeploymentsCreateFromTemplateResponse,
+  DeploymentsGetResponse,
+} from "@shared/ipc";
 import { DeploymentsChannels } from "@shared/ipc";
+import { DeploymentSchema } from "@shared/types/deployments";
 import {
   createDeployment,
   deleteDeployment,
   duplicateDeployment,
+  findDeploymentDirById,
   listDeployments,
   updateDeployment,
 } from "@main/services/deployments-store";
@@ -25,7 +31,7 @@ const ModularProvidersSchema = z.object({
 });
 
 const StsProvidersSchema = z.object({
-  sts: z.enum(["openai-realtime", "ultravox"] as const),
+  sts: z.enum(["openai-realtime", "ultravox", "gemini"] as const),
 });
 
 const CreateFromSelectionSchema = z.discriminatedUnion("type", [
@@ -44,6 +50,23 @@ const DuplicateSchema = z.object({ id: z.string(), name: z.string().optional() }
 const DeleteSchema = z.object({ id: z.string() });
 
 export function registerDeploymentsIpcHandlers(): void {
+  ipcMain.handle(DeploymentsChannels.get, async (_event, req: { id: string }): Promise<DeploymentsGetResponse> => {
+    const parsed = z.object({ id: z.string() }).parse(req);
+    const dir = findDeploymentDirById(parsed.id);
+    if (!dir) throw new Error("Deployment not found");
+    const { readFileSync } = await import("node:fs");
+    const { join } = await import("node:path");
+    const dep = DeploymentSchema.parse(JSON.parse(readFileSync(join(dir, "deployment.json"), "utf8")));
+    return {
+      id: dep.id,
+      name: dep.name,
+      slug: dep.slug,
+      type: dep.type,
+      asterisk: dep.asterisk,
+      updatedAt: dep.updatedAt,
+    };
+  });
+
   ipcMain.handle(
     DeploymentsChannels.createFromTemplate,
     async (_event, req: unknown): Promise<DeploymentsCreateFromTemplateResponse> => {

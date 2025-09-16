@@ -76,6 +76,13 @@ export const TemplatesPage: React.FC = () => {
         stackType: "sts",
       },
       {
+        id: "gemini-sts",
+        displayName: "Gemini Live (STS)",
+        summary: "STS stack using Gemini Live Speech-to-Speech.",
+        badges: ["STS"],
+        stackType: "sts",
+      },
+      {
         id: "n8n",
         displayName: "n8n Integration",
         summary: "Optional integration template for workflows via n8n.",

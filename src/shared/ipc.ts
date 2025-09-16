@@ -52,6 +52,7 @@ export type ProvidersApi = {
 export const DeploymentsChannels = {
   createFromTemplate: "deployments:createFromTemplate",
   createFromSelection: "deployments:createFromSelection",
+  get: "deployments:get",
   list: "deployments:list",
   update: "deployments:update",
   duplicate: "deployments:duplicate",
@@ -91,6 +92,19 @@ export interface DeploymentsListResponse {
   deployments: DeploymentsListItem[];
 }
 
+export interface DeploymentsGetRequest {
+  id: string;
+}
+
+export interface DeploymentsGetResponse {
+  id: string;
+  name: string;
+  slug: string;
+  type: "modular" | "sts";
+  asterisk?: AsteriskConfig;
+  updatedAt: string;
+}
+
 export interface DeploymentsUpdateRequest {
   id: string;
   name?: string;
@@ -124,6 +138,7 @@ export interface DeploymentsDeleteResponse {
 export type DeploymentsApi = {
   createFromTemplate: (req: DeploymentsCreateFromTemplateRequest) => Promise<DeploymentsCreateFromTemplateResponse>;
   createFromSelection: (req: DeploymentsCreateFromSelectionRequest) => Promise<DeploymentsCreateFromSelectionResponse>;
+  get: (req: DeploymentsGetRequest) => Promise<DeploymentsGetResponse>;
   list: () => Promise<DeploymentsListResponse>;
   update: (req: DeploymentsUpdateRequest) => Promise<DeploymentsUpdateResponse>;
   duplicate: (req: DeploymentsDuplicateRequest) => Promise<DeploymentsDuplicateResponse>;

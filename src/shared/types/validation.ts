@@ -16,7 +16,7 @@ export type ASRProviderId = (typeof ASR_PROVIDER_IDS)[number];
 export const TTS_PROVIDER_IDS = ["elevenlabs", "google"] as const;
 export type TTSProviderId = (typeof TTS_PROVIDER_IDS)[number];
 
-export const STS_PROVIDER_IDS = ["openai-realtime", "ultravox"] as const;
+export const STS_PROVIDER_IDS = ["openai-realtime", "ultravox", "gemini"] as const;
 export type STSProviderId = (typeof STS_PROVIDER_IDS)[number];
 
 export interface ModularSelection {

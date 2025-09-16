@@ -26,6 +26,7 @@ type BusyAction = "idle" | "generate" | "start" | "stop";
 export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deploymentId }) => {
   const [busy, setBusy] = useState<BusyAction>("idle");
   const [message, setMessage] = useState<string | null>(null);
+  const [messageKind, setMessageKind] = useState<"success" | "error">("success");
   const [services, setServices] = useState<ComposeServiceStatus[]>([]);
   const [statusSubscriptionId, setStatusSubscriptionId] = useState<string | null>(null);
   // removed legacy polling refs after switching to status subscription
@@ -206,8 +207,10 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     try {
       const res = await composeGenerate({ deploymentId });
       setMessage(`Compose ${res.changed ? "updated" : "unchanged"}: ${res.filePath}`);
+      setMessageKind("success");
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to generate compose file");
+      setMessageKind("error");
     } finally {
       setIdle();
     }
@@ -219,6 +222,7 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     try {
       const res = await composeUp({ deploymentId });
       setMessage(`Started: ${res.services.join(", ")}`);
+      setMessageKind("success");
       // ensure status watch is running after up
       if (!statusSubscriptionId) {
         try {
@@ -234,6 +238,7 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
       }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to start services");
+      setMessageKind("error");
     } finally {
       setIdle();
     }
@@ -245,6 +250,7 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     try {
       const res = await composeDown({ deploymentId });
       setMessage(`Stopped: ${res.services.join(", ")}`);
+      setMessageKind("success");
       // stop status watch on down
       if (statusSubscriptionId) {
         try {
@@ -267,6 +273,7 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
       }
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Failed to stop services");
+      setMessageKind("error");
     } finally {
       setIdle();
     }
@@ -301,7 +308,8 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
         </button>
       </div>
       {message && (
-        <ErrorBanner
+        <MessageBanner
+          kind={messageKind}
           message={message}
           onClose={() => setMessage(null)}
         />
@@ -380,8 +388,10 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
               const content = logBuffer.join("\n");
               const res = await composeLogsExport({ deploymentId, service: logService, content });
               setMessage(`Exported logs to ${res.filePath}`);
+              setMessageKind("success");
             } catch (e) {
               setMessage(e instanceof Error ? e.message : "Failed to export logs");
+              setMessageKind("error");
             }
           }}
         >
@@ -511,20 +521,26 @@ const HealthBadge: React.FC<{ health?: string }> = ({ health }) => {
   return <span className={`rounded px-2 py-0.5 text-xs ${classes}`}>{health}</span>;
 };
 
-const ErrorBanner: React.FC<{ message: string; onClose: () => void }> = ({ message, onClose }) => {
-  const hint = computeErrorHint(message);
+const MessageBanner: React.FC<{ kind: "success" | "error"; message: string; onClose: () => void }> = ({
+  kind,
+  message,
+  onClose,
+}) => {
   const base = "mb-2 rounded-md border px-3 py-2";
-  const color =
-    hint.severity === "warn"
+  const success = kind === "success";
+  const color = success ? "border-emerald-200 bg-emerald-50 text-emerald-800" : undefined;
+  const hint = success ? null : computeErrorHint(message);
+  const errColor =
+    hint?.severity === "warn"
       ? "border-yellow-200 bg-yellow-50 text-yellow-800"
       : "border-red-200 bg-red-50 text-red-800";
   return (
-    <div className={`${base} ${color}`}>
+    <div className={`${base} ${success ? color : errColor}`}>
       <div className="flex items-start justify-between gap-3">
         <div>
-          <div className="text-sm font-semibold">{hint.title}</div>
+          <div className="text-sm font-semibold">{success ? "Success" : hint?.title}</div>
           <div className="mt-0.5 text-sm opacity-90">{message}</div>
-          {hint.suggestions.length > 0 && (
+          {!success && hint && hint.suggestions.length > 0 && (
             <ul className="mt-2 list-disc pl-5 text-sm">
               {hint.suggestions.map((s, i) => (
                 <li key={i}>{s}</li>
@@ -535,7 +551,7 @@ const ErrorBanner: React.FC<{ message: string; onClose: () => void }> = ({ messa
         <button
           className="rounded px-2 py-1 text-sm hover:bg-black/5"
           onClick={onClose}
-          aria-label="Dismiss error"
+          aria-label="Dismiss message"
         >
           ✕
         </button>
@@ -591,6 +607,18 @@ function computeErrorHint(message: string): { title: string; suggestions: string
         "Stop the conflicting service or container using that port.",
         "Adjust the exposed ports in your deployment's Asterisk settings.",
         "Run Preflight to detect port conflicts early.",
+      ],
+      severity: "error",
+    };
+  }
+  if (msg.includes("ports are not available") || msg.includes("bind:") || msg.includes("listen udp")) {
+    return {
+      title: "UDP port(s) unavailable",
+      suggestions: [
+        "Another app or container is using one or more RTP ports.",
+        "Run Preflight and apply the Host Port In Use or Docker Ports Conflict remediations.",
+        "Change Asterisk RTP range in Asterisk settings to a free range (e.g., 20000-20999).",
+        "Stop containers using those ports (Docker Desktop → Containers).",
       ],
       severity: "error",
     };
