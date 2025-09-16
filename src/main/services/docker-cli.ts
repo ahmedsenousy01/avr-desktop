@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 export interface RunDockerOptions {
   cwd?: string;
@@ -69,6 +70,38 @@ export async function runDocker(args: string[], opts?: RunDockerOptions): Promis
   });
 }
 
+export interface DockerStream extends EventEmitter {
+  cancel: () => void;
+}
+
+class DockerStreamImpl extends EventEmitter implements DockerStream {
+  cancel(): void {}
+}
+
+export function runDockerStream(args: string[], opts?: RunDockerOptions): DockerStream {
+  const emitter = new DockerStreamImpl();
+  const child = spawn("docker", args, {
+    cwd: opts?.cwd,
+    env: opts?.env,
+    stdio: ["ignore", "pipe", "pipe"],
+  });
+
+  child.stdout.on("data", (d) => emitter.emit("data", d.toString()));
+  child.stderr.on("data", (d) => emitter.emit("error", d.toString()));
+  child.on("close", (code) => emitter.emit("close", code ?? 0));
+  child.on("error", (err) => emitter.emit("error", err));
+
+  emitter.cancel = () => {
+    try {
+      child.kill("SIGKILL");
+    } catch {
+      // ignore
+    }
+  };
+
+  return emitter;
+}
+
 export interface DockerAvailability {
   available: boolean;
   version?: string;
@@ -90,11 +123,11 @@ export async function checkDockerAvailable(timeoutMs = 5_000): Promise<DockerAva
 }
 
 function hasErrorCode(value: unknown): value is { code?: unknown } {
-  return typeof value === "object" && value !== null && "code" in (value as Record<string, unknown>);
+  return typeof value === "object" && value !== null && "code" in value;
 }
 
-function getFriendlyDockerErrorMessage(err: unknown): string {
-  if (hasErrorCode(err) && (err as { code?: unknown }).code === "ENOENT") {
+export function getFriendlyDockerErrorMessage(err: unknown): string {
+  if (hasErrorCode(err) && err.code === "ENOENT") {
     return "Docker CLI not found in PATH";
   }
   if (err instanceof DockerError) {

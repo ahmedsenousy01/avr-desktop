@@ -1,8 +1,15 @@
 // Preload currently does not expose any APIs.
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { AsteriskApi, DeploymentsApi, PreflightApi, ProvidersApi } from "@shared/ipc";
-import { AsteriskChannels, DeploymentsChannels, PreflightChannels, ProvidersChannels } from "@shared/ipc";
+import type { AsteriskApi, ComposeApi, DeploymentsApi, PreflightApi, ProvidersApi } from "@shared/ipc";
+import {
+  AsteriskChannels,
+  ComposeChannels,
+  ComposeEventChannels,
+  DeploymentsChannels,
+  PreflightChannels,
+  ProvidersChannels,
+} from "@shared/ipc";
 
 const providers: ProvidersApi = {
   list: () => ipcRenderer.invoke(ProvidersChannels.list),
@@ -37,3 +44,24 @@ const preflight: PreflightApi = {
 };
 
 contextBridge.exposeInMainWorld("preflight", preflight);
+
+const compose: ComposeApi = {
+  generate: (req) => ipcRenderer.invoke(ComposeChannels.generate, req),
+  up: (req) => ipcRenderer.invoke(ComposeChannels.up, req),
+  down: (req) => ipcRenderer.invoke(ComposeChannels.down, req),
+  status: (req) => ipcRenderer.invoke(ComposeChannels.status, req),
+  logsStart: (req) => ipcRenderer.invoke(ComposeChannels.logsStart, req),
+  logsStop: (req) => ipcRenderer.invoke(ComposeChannels.logsStop, req),
+  statusStart: (req) => ipcRenderer.invoke(ComposeChannels.statusStart, req),
+  statusStop: (req) => ipcRenderer.invoke(ComposeChannels.statusStop, req),
+};
+
+contextBridge.exposeInMainWorld("compose", compose);
+contextBridge.exposeInMainWorld("composeEvents", {
+  onStatusUpdate: (cb: (payload: unknown) => void) =>
+    ipcRenderer.on(ComposeEventChannels.statusUpdate, (_e, payload) => cb(payload)),
+  onLogsData: (cb: (payload: unknown) => void) =>
+    ipcRenderer.on(ComposeEventChannels.logsData, (_e, payload) => cb(payload)),
+  onLogsClosed: (cb: (payload: unknown) => void) =>
+    ipcRenderer.on(ComposeEventChannels.logsClosed, (_e, payload) => cb(payload)),
+});

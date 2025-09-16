@@ -4,6 +4,14 @@
  *
  * Note: Generation of a deployment skeleton from a template is implemented separately (see task 2.2).
  */
+import type {
+  ASRProviderId,
+  LLMProviderId,
+  ModularSelection,
+  STSProviderId,
+  StsSelection,
+  TTSProviderId,
+} from "../../shared/types/validation";
 
 export type StackType = "modular" | "sts" | "integration";
 
@@ -189,4 +197,77 @@ export function templateToDeployment(templateId: TemplateId, name?: string): Dep
     default:
       throw new Error(`Unhandled template id: ${templateId}`);
   }
+}
+
+// ----- Service fragment mapping (task 1.1) -----
+
+/**
+ * Logical identifiers for compose service fragments used by the writer.
+ * These are intentionally generic and do not encode the deployment slug.
+ */
+export const SERVICE_FRAGMENT_IDS = [
+  // Core infra
+  "core",
+  "asterisk",
+  "ami",
+  // Modular roles
+  "asr-deepgram",
+  "asr-google",
+  "asr-vosk",
+  "tts-elevenlabs",
+  "tts-google",
+  "llm-openai",
+  "llm-anthropic",
+  "llm-gemini",
+  // STS roles
+  "sts-openai-realtime",
+  "sts-ultravox",
+] as const;
+
+export type ServiceFragmentId = (typeof SERVICE_FRAGMENT_IDS)[number];
+
+/** Static maps from provider selections to fragment ids. */
+const ASR_TO_FRAGMENT: Readonly<Record<ASRProviderId, ServiceFragmentId>> = {
+  deepgram: "asr-deepgram",
+  google: "asr-google",
+  vosk: "asr-vosk",
+};
+
+const TTS_TO_FRAGMENT: Readonly<Record<TTSProviderId, ServiceFragmentId>> = {
+  elevenlabs: "tts-elevenlabs",
+  google: "tts-google",
+};
+
+const LLM_TO_FRAGMENT: Readonly<Record<LLMProviderId, ServiceFragmentId>> = {
+  openai: "llm-openai",
+  anthropic: "llm-anthropic",
+  gemini: "llm-gemini",
+};
+
+const STS_TO_FRAGMENT: Readonly<Record<STSProviderId, ServiceFragmentId>> = {
+  "openai-realtime": "sts-openai-realtime",
+  ultravox: "sts-ultravox",
+};
+
+/**
+ * Returns the ordered list of fragment ids for a modular selection.
+ * Order is stable to support deterministic YAML composition in later steps.
+ */
+export function getFragmentsForModularSelection(selection: ModularSelection): ServiceFragmentId[] {
+  return [
+    "core",
+    "asterisk",
+    "ami",
+    ASR_TO_FRAGMENT[selection.asr],
+    TTS_TO_FRAGMENT[selection.tts],
+    LLM_TO_FRAGMENT[selection.llm],
+  ];
+}
+
+/**
+ * Returns the ordered list of fragment ids for an STS selection.
+ * Order is stable to support deterministic YAML composition in later steps.
+ */
+export function getFragmentsForStsSelection(selection: StsSelection): ServiceFragmentId[] {
+  return ["core", "asterisk", "ami", STS_TO_FRAGMENT[selection.sts]];
 }

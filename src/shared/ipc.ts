@@ -212,3 +212,110 @@ export type PreflightApi = {
   run: (req: PreflightRunRequest) => Promise<PreflightRunResponse>;
   last: (req: PreflightLastRequest) => Promise<PreflightLastResponse>;
 };
+
+// Compose IPC channels
+export const ComposeChannels = {
+  generate: "compose:generate",
+  up: "compose:up",
+  down: "compose:down",
+  status: "compose:status",
+  logsStart: "compose:logsStart",
+  logsStop: "compose:logsStop",
+  statusStart: "compose:statusStart",
+  statusStop: "compose:statusStop",
+} as const;
+
+export interface ComposeGenerateRequest {
+  deploymentId: string;
+}
+
+export interface ComposeGenerateResponse {
+  filePath: string;
+  changed: boolean;
+  services: string[];
+}
+
+export type ComposeApi = {
+  generate: (req: ComposeGenerateRequest) => Promise<ComposeGenerateResponse>;
+  up: (req: ComposeGenerateRequest) => Promise<ComposeUpResponse>;
+  down: (req: ComposeGenerateRequest) => Promise<ComposeDownResponse>;
+  status: (req: ComposeGenerateRequest) => Promise<ComposeStatusResponse>;
+  logsStart: (req: ComposeLogsStartRequest) => Promise<ComposeLogsStartResponse>;
+  logsStop: (req: ComposeLogsStopRequest) => Promise<ComposeLogsStopResponse>;
+  statusStart: (req: ComposeStatusStartRequest) => Promise<ComposeStatusStartResponse>;
+  statusStop: (req: ComposeStatusStopRequest) => Promise<ComposeStatusStopResponse>;
+};
+
+export interface ComposeUpResponse {
+  services: string[];
+  stdout: string;
+}
+
+export interface ComposeDownResponse {
+  services: string[];
+  stdout: string;
+}
+
+export type ComposeServiceState = "running" | "exited" | "unknown";
+
+export interface ComposeServiceStatus {
+  service: string;
+  state: ComposeServiceState;
+  containerId?: string;
+  health?: string;
+  role?: string;
+}
+
+export interface ComposeStatusResponse {
+  services: ComposeServiceStatus[];
+}
+
+export interface ComposeStatusStartRequest {
+  deploymentId: string;
+  intervalMs?: number; // default 2000
+}
+
+export interface ComposeStatusStartResponse {
+  subscriptionId: string;
+}
+
+export interface ComposeStatusStopRequest {
+  subscriptionId: string;
+}
+
+export interface ComposeStatusStopResponse {
+  stopped: boolean;
+}
+
+export const ComposeEventChannels = {
+  statusUpdate: "compose:statusUpdate",
+  logsData: "compose:logsData",
+  logsClosed: "compose:logsClosed",
+} as const;
+
+export interface ComposeLogsStartRequest {
+  deploymentId: string;
+  service?: string; // if omitted, aggregate logs
+}
+
+export interface ComposeLogsStartResponse {
+  subscriptionId: string;
+}
+
+export interface ComposeLogsStopRequest {
+  subscriptionId: string;
+}
+
+export interface ComposeLogsStopResponse {
+  stopped: boolean;
+}
+
+export interface ComposeLogsDataEvent {
+  subscriptionId: string;
+  chunk: string;
+}
+
+export interface ComposeLogsClosedEvent {
+  subscriptionId: string;
+  exitCode: number;
+}

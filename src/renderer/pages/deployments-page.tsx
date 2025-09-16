@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 
 import type { DeploymentsListResponse } from "@shared/ipc";
+import { DeploymentRunPanel } from "@renderer/components/deployment-run-panel";
 import { PreflightPanel } from "@renderer/components/preflight-panel";
 import {
   deploymentsDelete,
@@ -20,6 +21,7 @@ export const DeploymentsPage: React.FC = () => {
   const [renameValue, setRenameValue] = useState<string>("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [runId, setRunId] = useState<string | null>(null);
   const [preflightStatus, setPreflightStatus] = useState<Record<string, "unknown" | "pass" | "warn" | "fail">>({});
 
   const hasItems = useMemo(() => items.length > 0, [items]);
@@ -199,6 +201,13 @@ export const DeploymentsPage: React.FC = () => {
                             {expandedId === item.id ? "Hide Preflight" : "Preflight"}
                           </button>
                           <button
+                            className="rounded px-3 py-1 text-slate-700 hover:bg-slate-100 disabled:opacity-50"
+                            onClick={() => setRunId(runId === item.id ? null : item.id)}
+                            disabled={isBusy || isRenaming}
+                          >
+                            {runId === item.id ? "Hide Run" : "Run"}
+                          </button>
+                          <button
                             className={
                               "rounded px-3 py-1 text-white disabled:opacity-50 " +
                               (canStart ? "bg-emerald-600 hover:bg-emerald-700" : "bg-slate-400")
@@ -226,6 +235,16 @@ export const DeploymentsPage: React.FC = () => {
                               setPreflightStatus((prev) => ({ ...prev, [item.id]: res.summary.overall }))
                             }
                           />
+                        </td>
+                      </tr>
+                    )}
+                    {runId === item.id && (
+                      <tr className="bg-slate-50/40">
+                        <td
+                          colSpan={4}
+                          className="px-4 py-3"
+                        >
+                          <DeploymentRunPanel deploymentId={item.id} />
                         </td>
                       </tr>
                     )}

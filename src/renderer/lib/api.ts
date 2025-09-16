@@ -4,6 +4,20 @@ import type {
   AsteriskRenderConfigResponse,
   AsteriskValidateConfigRequest,
   AsteriskValidateConfigResponse,
+  ComposeApi,
+  ComposeDownResponse,
+  ComposeGenerateRequest,
+  ComposeGenerateResponse,
+  ComposeLogsStartRequest,
+  ComposeLogsStartResponse,
+  ComposeLogsStopRequest,
+  ComposeLogsStopResponse,
+  ComposeStatusResponse,
+  ComposeStatusStartRequest,
+  ComposeStatusStartResponse,
+  ComposeStatusStopRequest,
+  ComposeStatusStopResponse,
+  ComposeUpResponse,
   DeploymentsApi,
   DeploymentsCreateFromSelectionRequest,
   DeploymentsCreateFromSelectionResponse,
@@ -29,6 +43,7 @@ declare global {
     deployments?: DeploymentsApi;
     asterisk?: AsteriskApi;
     preflight?: PreflightApi;
+    compose?: ComposeApi;
   }
 }
 
@@ -39,6 +54,8 @@ export const deployments: DeploymentsApi | undefined = window.deployments;
 export const asterisk: AsteriskApi | undefined = window.asterisk;
 
 export const preflight: PreflightApi | undefined = window.preflight;
+
+export const compose: ComposeApi | undefined = window.compose;
 
 export async function asteriskValidateConfig(
   req: AsteriskValidateConfigRequest
@@ -99,4 +116,44 @@ export async function preflightRun(req: PreflightRunRequest): Promise<PreflightR
 export async function preflightLast(req: PreflightLastRequest): Promise<PreflightLastResponse> {
   if (!window.preflight) throw new Error("Preflight API is not available in preload");
   return window.preflight.last(req);
+}
+
+export async function composeGenerate(req: ComposeGenerateRequest): Promise<ComposeGenerateResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.generate(req);
+}
+
+export async function composeUp(req: ComposeGenerateRequest): Promise<ComposeUpResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.up(req);
+}
+
+export async function composeDown(req: ComposeGenerateRequest): Promise<ComposeDownResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.down(req);
+}
+
+export async function composeStatus(req: ComposeGenerateRequest): Promise<ComposeStatusResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.status(req);
+}
+
+export async function composeLogsStart(req: ComposeLogsStartRequest): Promise<ComposeLogsStartResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.logsStart(req);
+}
+
+export async function composeLogsStop(req: ComposeLogsStopRequest): Promise<ComposeLogsStopResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.logsStop(req);
+}
+
+export async function composeStatusStart(req: ComposeStatusStartRequest): Promise<ComposeStatusStartResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.statusStart(req);
+}
+
+export async function composeStatusStop(req: ComposeStatusStopRequest): Promise<ComposeStatusStopResponse> {
+  if (!window.compose) throw new Error("Compose API is not available in preload");
+  return window.compose.statusStop(req);
 }
