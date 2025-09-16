@@ -152,7 +152,8 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
       const evt = payload as ComposeLogsClosedEvent;
       if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
       setLogSubscriptionId(null);
-      if (logFollow) {
+      // Avoid reconnect loop when no services are available yet
+      if (logFollow && services.length > 0) {
         setLogState("reconnecting");
         void startLogs(false);
       } else {
@@ -172,7 +173,7 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     return () => {
       // best-effort: no off() provided; new handlers replace page lifecycle
     };
-  }, [statusSubscriptionId, logSubscriptionId, logService, logFollow, logState, startLogs]);
+  }, [statusSubscriptionId, logSubscriptionId, logService, logFollow, logState, startLogs, services.length]);
 
   // Restart logs stream when selected service changes and a stream is active
   useEffect(() => {
