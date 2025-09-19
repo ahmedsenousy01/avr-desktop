@@ -74,7 +74,7 @@ describe("deployments-store", () => {
   it("updates asterisk config and emits conf files", async () => {
     const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
     const _dir = path.join(tmpRoot, "deployments", dep.slug);
-    const astDir = path.join(_dir, "asterisk");
+    const astDir = path.join(_dir, "asterisk", "conf");
     const cfg = { ...DEFAULT_ASTERISK_CONFIG, externalIp: "198.51.100.5" };
     const next = await updateDeployment(dep.id, { asterisk: cfg });
     expect(next.asterisk?.externalIp).toBe("198.51.100.5");
@@ -87,7 +87,7 @@ describe("deployments-store", () => {
   it("is idempotent when writing asterisk files multiple times", async () => {
     const dep = createDeployment({ type: "modular", providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" } });
     const _dir = path.join(tmpRoot, "deployments", dep.slug);
-    const astDir = path.join(_dir, "asterisk");
+    const astDir = path.join(_dir, "asterisk", "conf");
     const cfg = { ...DEFAULT_ASTERISK_CONFIG, externalIp: "203.0.113.10" };
     await updateDeployment(dep.id, { asterisk: cfg });
     await updateDeployment(dep.id, { asterisk: cfg });
@@ -107,8 +107,71 @@ describe("deployments-store", () => {
     const dupJson = JSON.parse(fs.readFileSync(path.join(dupDir, "deployment.json"), "utf8"));
     expect(dupJson.asterisk.externalIp).toBe("192.0.2.10");
     for (const name of ["ari.conf", "pjsip.conf", "extensions.conf", "manager.conf", "queues.conf"]) {
-      expect(fs.existsSync(path.join(dupDir, "asterisk", name))).toBe(true);
+      expect(fs.existsSync(path.join(dupDir, "asterisk", "conf", name))).toBe(true);
     }
+  });
+
+  it("updates environment overrides", async () => {
+    const dep = createDeployment({ type: "sts", providers: { sts: "gemini" } });
+    const overrides = {
+      GEMINI_MODEL: "gemini-2.5-flash-preview-native-audio-dialog",
+      GEMINI_INSTRUCTIONS: "You are a helpful assistant",
+      CUSTOM_VAR: "test-value",
+    };
+
+    const updated = await updateDeployment(dep.id, { environmentOverrides: overrides });
+    expect(updated.environmentOverrides).toEqual(overrides);
+
+    // Verify persistence
+    const file = path.join(tmpRoot, "deployments", dep.slug, "deployment.json");
+    const json = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(json.environmentOverrides).toEqual(overrides);
+  });
+
+  it("replaces environment overrides completely", async () => {
+    const dep = createDeployment({ type: "sts", providers: { sts: "gemini" } });
+
+    // Set initial overrides
+    await updateDeployment(dep.id, {
+      environmentOverrides: {
+        GEMINI_MODEL: "gemini-2.0-flash",
+        EXISTING_VAR: "keep-me",
+      },
+    });
+
+    // Update with new overrides
+    const updated = await updateDeployment(dep.id, {
+      environmentOverrides: {
+        GEMINI_MODEL: "gemini-2.5-flash-preview-native-audio-dialog",
+        NEW_VAR: "new-value",
+      },
+    });
+
+    expect(updated.environmentOverrides).toEqual({
+      GEMINI_MODEL: "gemini-2.5-flash-preview-native-audio-dialog",
+      NEW_VAR: "new-value",
+    });
+  });
+
+  it("clears environment overrides when set to empty object", async () => {
+    const dep = createDeployment({ type: "sts", providers: { sts: "gemini" } });
+
+    // Set initial overrides
+    await updateDeployment(dep.id, {
+      environmentOverrides: {
+        GEMINI_MODEL: "gemini-2.0-flash",
+        CUSTOM_VAR: "test",
+      },
+    });
+
+    // Clear overrides
+    const updated = await updateDeployment(dep.id, { environmentOverrides: {} });
+    expect(updated.environmentOverrides).toEqual({});
+
+    // Verify persistence
+    const file = path.join(tmpRoot, "deployments", dep.slug, "deployment.json");
+    const json = JSON.parse(fs.readFileSync(file, "utf8"));
+    expect(json.environmentOverrides).toEqual({});
   });
 });
 

@@ -82,6 +82,12 @@ export function buildComposeObject(
 
   for (const nf of named) {
     const env = getEnvForFragment(providers, nf.fragmentId);
+    // Apply deployment-level overrides across all services (last-wins on duplicate keys)
+    if (deployment.environmentOverrides) {
+      for (const [k, v] of Object.entries(deployment.environmentOverrides)) {
+        env[k] = v;
+      }
+    }
     const maybeImage = FRAGMENT_IMAGE[nf.fragmentId];
     const svc: ComposeService = createBaseService(nf.serviceName, nf.aliases, networkName);
     if (maybeImage) svc.image = maybeImage;

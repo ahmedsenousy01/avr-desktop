@@ -8,6 +8,8 @@ import { ProvidersPage } from "@renderer/pages/providers-page";
 import { TemplatesPage } from "@renderer/pages/templates-page";
 import { RootLayout } from "@renderer/root-layout";
 
+import { EnvironmentPage } from "./pages/environment-page";
+
 const rootRoute = createRootRoute({ component: RootLayout });
 
 const indexRoute = createRoute({
@@ -48,6 +50,12 @@ const asteriskRoute = createRoute({
   component: AsteriskPage,
 });
 
+const environmentRoute = createRoute({
+  getParentRoute: () => rootRoute,
+  path: "/environment",
+  component: EnvironmentPage,
+});
+
 const routeTree = rootRoute.addChildren([
   indexRoute,
   providersRoute,
@@ -55,6 +63,7 @@ const routeTree = rootRoute.addChildren([
   deploymentsRoute,
   composerRoute,
   asteriskRoute,
+  environmentRoute,
 ]);
 
 export const router = createRouter({ routeTree });

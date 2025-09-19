@@ -26,6 +26,15 @@ export function RootLayout() {
           </li>
           <li>
             <Link
+              to="/environment"
+              className="block px-2.5 py-2 font-semibold"
+              activeProps={{ className: "text-blue-600" }}
+            >
+              Environment
+            </Link>
+          </li>
+          <li>
+            <Link
               to="/templates"
               className="block px-2.5 py-2 font-semibold"
               activeProps={{ className: "text-blue-600" }}

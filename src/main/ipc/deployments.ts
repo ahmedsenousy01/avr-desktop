@@ -45,6 +45,7 @@ const UpdateSchema = z.object({
   name: z.string().optional(),
   providers: z.record(z.string(), z.string()).optional(),
   asterisk: z.any().optional(),
+  environmentOverrides: z.record(z.string(), z.string()).optional(),
 });
 const DuplicateSchema = z.object({ id: z.string(), name: z.string().optional() });
 const DeleteSchema = z.object({ id: z.string() });
@@ -63,6 +64,7 @@ export function registerDeploymentsIpcHandlers(): void {
       slug: dep.slug,
       type: dep.type,
       asterisk: dep.asterisk,
+      environmentOverrides: dep.environmentOverrides,
       updatedAt: dep.updatedAt,
     };
   });
@@ -129,6 +131,7 @@ export function registerDeploymentsIpcHandlers(): void {
       name: parsed.name,
       providers: parsed.providers,
       asterisk: parsed.asterisk,
+      environmentOverrides: parsed.environmentOverrides,
     });
     return { id: next.id, name: next.name };
   });

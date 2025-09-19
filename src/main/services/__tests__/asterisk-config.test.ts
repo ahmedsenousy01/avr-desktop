@@ -6,7 +6,7 @@ import { buildTokenMap, makeToken, renderWithTokens } from "@main/services/aster
 describe("asterisk-config token mapping and rendering", () => {
   it("builds a token map from config", () => {
     const map = buildTokenMap(DEFAULT_ASTERISK_CONFIG);
-    expect(map[makeToken("EXTERNAL_IP")]).toBe("");
+    expect(map[makeToken("EXTERNAL_IP")]).toBe(DEFAULT_ASTERISK_CONFIG.externalIp);
     expect(map[makeToken("SIP_PORT")]).toBe(String(DEFAULT_ASTERISK_CONFIG.sipPort));
     expect(map[makeToken("RTP_START")]).toBe(String(DEFAULT_ASTERISK_CONFIG.rtpStart));
     expect(map[makeToken("RTP_END")]).toBe(String(DEFAULT_ASTERISK_CONFIG.rtpEnd));

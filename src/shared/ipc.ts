@@ -102,6 +102,7 @@ export interface DeploymentsGetResponse {
   slug: string;
   type: "modular" | "sts";
   asterisk?: AsteriskConfig;
+  environmentOverrides?: Record<string, string>;
   updatedAt: string;
 }
 
@@ -110,6 +111,7 @@ export interface DeploymentsUpdateRequest {
   name?: string;
   providers?: Record<string, string>;
   asterisk?: AsteriskConfig;
+  environmentOverrides?: Record<string, string>;
 }
 
 export interface DeploymentsUpdateResponse {

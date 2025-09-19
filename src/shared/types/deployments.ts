@@ -21,6 +21,8 @@ export interface Deployment {
   type: DeploymentType;
   providers: DeploymentProviders;
   asterisk?: AsteriskConfig;
+  /** Optional deployment-level environment variable overrides applied to services during compose generation. */
+  environmentOverrides?: Record<string, string>;
   createdAt: string; // ISO
   updatedAt: string; // ISO
 }
@@ -45,6 +47,7 @@ const BaseDeploymentSchema = z.object({
   type: z.enum(["modular", "sts"] as const),
   providers: DeploymentProvidersSchema,
   asterisk: AsteriskConfigSchema.optional(),
+  environmentOverrides: z.record(z.string(), z.string()).optional(),
   createdAt: z.string(),
   updatedAt: z.string(),
 });

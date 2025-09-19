@@ -121,7 +121,12 @@ export function findDeploymentDirById(id: string): string | null {
 
 export async function updateDeployment(
   id: string,
-  patch: { name?: string; providers?: Partial<Deployment["providers"]>; asterisk?: AsteriskConfig }
+  patch: {
+    name?: string;
+    providers?: Partial<Deployment["providers"]>;
+    asterisk?: AsteriskConfig;
+    environmentOverrides?: Record<string, string>;
+  }
 ): Promise<Deployment> {
   const dir = findDeploymentDirById(id);
   if (!dir) throw new Error("Deployment not found");
@@ -132,6 +137,8 @@ export async function updateDeployment(
     name: patch.name ?? current.name,
     providers: { ...current.providers, ...(patch.providers ?? {}) },
     asterisk: patch.asterisk ?? current.asterisk,
+    environmentOverrides:
+      patch.environmentOverrides !== undefined ? patch.environmentOverrides : current.environmentOverrides,
     updatedAt: new Date().toISOString(),
   };
   fs.writeFileSync(file, JSON.stringify(next, null, 2), "utf8");

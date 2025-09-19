@@ -90,6 +90,7 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
         if (!clearBuffer) setLogState("reconnecting");
       } catch (e) {
         setMessage(e instanceof Error ? e.message : "Failed to start logs");
+        setMessageKind("error");
       }
     },
     [logSubscriptionId, services, deploymentId, logService]
