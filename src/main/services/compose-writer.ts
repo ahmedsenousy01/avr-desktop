@@ -85,23 +85,157 @@ export function buildComposeObject(
     const maybeImage = FRAGMENT_IMAGE[nf.fragmentId];
     const svc: ComposeService = createBaseService(nf.serviceName, nf.aliases, networkName);
     if (maybeImage) svc.image = maybeImage;
-    if (Object.keys(env).length > 0) svc.environment = env;
 
     if (nf.fragmentId === "asterisk") {
       const cfg = asteriskConfig ?? DEFAULT_ASTERISK_CONFIG;
       svc.ports = getAsteriskPortMappings(cfg);
       svc.volumes = getAsteriskConfMounts();
+      // Gemini STS example serves a static phone UI from Asterisk HTTP server
+      if (fragments.includes("sts-gemini")) {
+        svc.volumes = [...(svc.volumes ?? []), "./phone:/var/lib/asterisk/static-http/phone"];
+      }
     }
 
+    // Inject env/ports/volumes from example files for all fragments
     if (nf.fragmentId === "ami") {
-      svc.environment = {
-        PORT: "6006",
-        AMI_HOST: asteriskServiceName ?? "asterisk",
-        AMI_PORT: "5038",
-        AMI_USERNAME: "avr",
-        AMI_PASSWORD: "avr",
-      };
+      env.PORT = "6006";
+      env.AMI_HOST = asteriskServiceName ?? "asterisk";
+      env.AMI_PORT = "5038";
+      env.AMI_USERNAME = "avr";
+      env.AMI_PASSWORD = "avr";
+      // STS examples expose AMI port on host (6006:6006)
+      if (deployment.type === "sts") {
+        svc.ports = ["6006:6006"];
+      }
     }
+
+    if (nf.fragmentId === "core") {
+      // Core always exposes 5001 and either STS_URL (sts) or ASR/LLM/TTS URLs (modular)
+      env.PORT = "5001";
+      // Determine companion services
+      const byId = new Map<ServiceFragmentId, string>(named.map((x) => [x.fragmentId, x.serviceName] as const));
+      if (deployment.type === "sts") {
+        // Map STS fragment -> default port from examples
+        const stsId = fragments.find((f) => f.startsWith("sts-")) as ServiceFragmentId | undefined;
+        const stsService = stsId ? byId.get(stsId) : undefined;
+        const stsPort =
+          stsId === "sts-openai-realtime"
+            ? 6030
+            : stsId === "sts-ultravox"
+              ? 6031
+              : stsId === "sts-gemini"
+                ? 6037
+                : undefined;
+        if (stsService && stsPort) {
+          env.STS_URL = `ws://${stsService}:${String(stsPort)}`;
+        }
+      } else {
+        // Modular pipeline URLs and sensible defaults from examples
+        const asrId = fragments.find((f) => f.startsWith("asr-")) as ServiceFragmentId | undefined;
+        const llmId = fragments.find((f) => f.startsWith("llm-")) as ServiceFragmentId | undefined;
+        const ttsId = fragments.find((f) => f.startsWith("tts-")) as ServiceFragmentId | undefined;
+
+        if (asrId) {
+          const asrService = byId.get(asrId);
+          const asrPort = asrId === "asr-google" ? 6001 : 6010; // deepgram/vosk 6010 by examples
+          env.ASR_URL = `http://${asrService}:${String(asrPort)}/speech-to-text-stream`;
+        }
+        if (llmId) {
+          const llmService = byId.get(llmId);
+          const llmPort = llmId === "llm-openai" ? 6002 : llmId === "llm-anthropic" ? 6014 : undefined;
+          if (llmPort) env.LLM_URL = `http://${llmService}:${String(llmPort)}/prompt-stream`;
+        }
+        if (ttsId) {
+          const ttsService = byId.get(ttsId);
+          const ttsPort = ttsId === "tts-google" ? 6003 : undefined;
+          if (ttsPort) env.TTS_URL = `http://${ttsService}:${String(ttsPort)}/text-to-speech-stream`;
+        }
+        // Defaults used in examples
+        env.INTERRUPT_LISTENING = asrId === "asr-google" ? "false" : "true";
+        env.SYSTEM_MESSAGE = env.SYSTEM_MESSAGE ?? "Hello, how can I help you today?";
+      }
+      svc.ports = ["5001:5001"];
+    }
+
+    // STS providers (examples): add ports and defaults
+    if (nf.fragmentId === "sts-openai-realtime") {
+      env.PORT = env.PORT ?? "6030";
+      env.OPENAI_MODEL = env.OPENAI_MODEL ?? "gpt-4o-realtime-preview";
+      env.OPENAI_INSTRUCTIONS = env.OPENAI_INSTRUCTIONS ?? "You are a helpful assistant.";
+      const amiService = named.find((x) => x.fragmentId === "ami")?.serviceName ?? "ami";
+      env.AMI_URL = env.AMI_URL ?? `http://${amiService}:6006`;
+    }
+    if (nf.fragmentId === "sts-gemini") {
+      env.PORT = env.PORT ?? "6037";
+      const amiService = named.find((x) => x.fragmentId === "ami")?.serviceName ?? "ami";
+      env.AMI_URL = env.AMI_URL ?? `http://${amiService}:6006`;
+      // Set default model to native audio dialogue model and system prompt
+      env.GEMINI_MODEL = env.GEMINI_MODEL ?? "gemini-2.5-flash-preview-native-audio-dialog";
+      env.GEMINI_INSTRUCTIONS =
+        env.GEMINI_INSTRUCTIONS ??
+        "You are a helpful AI assistant capable of natural conversation. Respond naturally and conversationally, as if speaking to a friend. Keep responses concise but engaging, and feel free to ask clarifying questions when needed.";
+    }
+    if (nf.fragmentId === "sts-ultravox") {
+      env.PORT = env.PORT ?? "6031";
+      // Keys not managed via providers; include placeholders so users notice
+      env.ULTRAVOX_AGENT_ID = env.ULTRAVOX_AGENT_ID ?? "";
+      env.ULTRAVOX_API_KEY = env.ULTRAVOX_API_KEY ?? "";
+    }
+
+    // LLM services (modular examples)
+    if (nf.fragmentId === "llm-openai") {
+      env.PORT = env.PORT ?? "6002";
+      env.OPENAI_MODEL = env.OPENAI_MODEL ?? "gpt-3.5-turbo";
+      env.OPENAI_MAX_TOKENS = env.OPENAI_MAX_TOKENS ?? "100";
+      env.OPENAI_TEMPERATURE = env.OPENAI_TEMPERATURE ?? "0.0";
+      env.SYSTEM_PROMPT = env.SYSTEM_PROMPT ?? "You are a helpful assistant.";
+      const amiService = named.find((x) => x.fragmentId === "ami")?.serviceName ?? "ami";
+      env.AMI_URL = env.AMI_URL ?? `http://${amiService}:6006`;
+      // Tools mount used by example for custom tools
+      svc.volumes = [...(svc.volumes ?? []), "./tools:/usr/src/app/tools"];
+    }
+    if (nf.fragmentId === "llm-anthropic") {
+      env.PORT = env.PORT ?? "6014";
+      env.ANTHROPIC_MODEL = env.ANTHROPIC_MODEL ?? "claude-3-5-sonnet-20240620";
+      env.ANTHROPIC_MAX_TOKENS = env.ANTHROPIC_MAX_TOKENS ?? "1024";
+      env.ANTHROPIC_TEMPERATURE = env.ANTHROPIC_TEMPERATURE ?? "1";
+      env.ANTHROPIC_SYSTEM_PROMPT = env.ANTHROPIC_SYSTEM_PROMPT ?? "You are a helpful assistant.";
+      const amiService = named.find((x) => x.fragmentId === "ami")?.serviceName ?? "ami";
+      env.AMI_URL = env.AMI_URL ?? `http://${amiService}:6006`;
+    }
+
+    // ASR services (modular examples)
+    if (nf.fragmentId === "asr-deepgram") {
+      env.PORT = env.PORT ?? "6010";
+      env.SPEECH_RECOGNITION_LANGUAGE = env.SPEECH_RECOGNITION_LANGUAGE ?? "en-US";
+      env.SPEECH_RECOGNITION_MODEL = env.SPEECH_RECOGNITION_MODEL ?? "nova-2-phonecall";
+    }
+    if (nf.fragmentId === "asr-google") {
+      env.PORT = env.PORT ?? "6001";
+      env.GOOGLE_APPLICATION_CREDENTIALS = env.GOOGLE_APPLICATION_CREDENTIALS ?? "/usr/src/app/google.json";
+      env.SPEECH_RECOGNITION_LANGUAGE = env.SPEECH_RECOGNITION_LANGUAGE ?? "en-US";
+      env.SPEECH_RECOGNITION_MODEL = env.SPEECH_RECOGNITION_MODEL ?? "telephony";
+      svc.volumes = [...(svc.volumes ?? []), "./google.json:/usr/src/app/google.json"];
+    }
+    if (nf.fragmentId === "asr-vosk") {
+      env.PORT = env.PORT ?? "6010";
+      env.MODEL_PATH = env.MODEL_PATH ?? "model";
+      svc.volumes = [...(svc.volumes ?? []), "./model:/usr/src/app/model"];
+    }
+
+    // TTS services (modular examples)
+    if (nf.fragmentId === "tts-google") {
+      env.PORT = env.PORT ?? "6003";
+      env.GOOGLE_APPLICATION_CREDENTIALS = env.GOOGLE_APPLICATION_CREDENTIALS ?? "/usr/src/app/google.json";
+      env.TEXT_TO_SPEECH_LANGUAGE = env.TEXT_TO_SPEECH_LANGUAGE ?? "en-US";
+      env.TEXT_TO_SPEECH_GENDER = env.TEXT_TO_SPEECH_GENDER ?? "FEMALE";
+      env.TEXT_TO_SPEECH_NAME = env.TEXT_TO_SPEECH_NAME ?? "en-US-Chirp-HD-F";
+      env.TEXT_TO_SPEECH_SPEAKING_RATE = env.TEXT_TO_SPEECH_SPEAKING_RATE ?? "1.0";
+      svc.volumes = [...(svc.volumes ?? []), "./google.json:/usr/src/app/google.json"];
+    }
+
+    // Assign env at the end so additions above are captured
+    if (Object.keys(env).length > 0) svc.environment = env;
 
     services[nf.serviceName] = svc;
   }

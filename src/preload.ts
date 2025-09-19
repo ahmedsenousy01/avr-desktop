@@ -61,12 +61,24 @@ const compose: ComposeApi = {
 
 contextBridge.exposeInMainWorld("compose", compose);
 contextBridge.exposeInMainWorld("composeEvents", {
-  onStatusUpdate: (cb: (payload: unknown) => void) =>
-    ipcRenderer.on(ComposeEventChannels.statusUpdate, (_e, payload) => cb(payload)),
-  onLogsData: (cb: (payload: unknown) => void) =>
-    ipcRenderer.on(ComposeEventChannels.logsData, (_e, payload) => cb(payload)),
-  onLogsClosed: (cb: (payload: unknown) => void) =>
-    ipcRenderer.on(ComposeEventChannels.logsClosed, (_e, payload) => cb(payload)),
-  onLogsError: (cb: (payload: unknown) => void) =>
-    ipcRenderer.on(ComposeEventChannels.logsError, (_e, payload) => cb(payload)),
+  onStatusUpdate: (cb: (payload: unknown) => void) => {
+    const handler = (_e: unknown, payload: unknown) => cb(payload);
+    ipcRenderer.on(ComposeEventChannels.statusUpdate, handler as never);
+    return () => ipcRenderer.removeListener(ComposeEventChannels.statusUpdate, handler as never);
+  },
+  onLogsData: (cb: (payload: unknown) => void) => {
+    const handler = (_e: unknown, payload: unknown) => cb(payload);
+    ipcRenderer.on(ComposeEventChannels.logsData, handler as never);
+    return () => ipcRenderer.removeListener(ComposeEventChannels.logsData, handler as never);
+  },
+  onLogsClosed: (cb: (payload: unknown) => void) => {
+    const handler = (_e: unknown, payload: unknown) => cb(payload);
+    ipcRenderer.on(ComposeEventChannels.logsClosed, handler as never);
+    return () => ipcRenderer.removeListener(ComposeEventChannels.logsClosed, handler as never);
+  },
+  onLogsError: (cb: (payload: unknown) => void) => {
+    const handler = (_e: unknown, payload: unknown) => cb(payload);
+    ipcRenderer.on(ComposeEventChannels.logsError, handler as never);
+    return () => ipcRenderer.removeListener(ComposeEventChannels.logsError, handler as never);
+  },
 });

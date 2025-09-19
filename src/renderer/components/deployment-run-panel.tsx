@@ -40,6 +40,16 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
   const [logState, setLogState] = useState<"idle" | "connected" | "reconnecting" | "stopped">("idle");
   const logsEndRef = useRef<HTMLDivElement | null>(null);
 
+  // Refs to avoid stale closures in event handlers; listeners are registered once
+  const statusSubscriptionIdRef = useRef<string | null>(null);
+  const logSubscriptionIdRef = useRef<string | null>(null);
+  const logServiceRef = useRef<string | undefined>(undefined);
+  const logFollowRef = useRef<boolean>(true);
+  const logStateRef = useRef<typeof logState>("idle");
+  const servicesRef = useRef<ComposeServiceStatus[]>([]);
+  const startLogsRef = useRef<((clearBuffer?: boolean) => Promise<void>) | null>(null);
+  const stoppingLogsRef = useRef<boolean>(false);
+
   const isBusy = useMemo(() => busy !== "idle", [busy]);
 
   useEffect(() => {
@@ -85,9 +95,33 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     [logSubscriptionId, services, deploymentId, logService]
   );
 
+  // Keep refs in sync with state that handlers need
+  useEffect(() => {
+    statusSubscriptionIdRef.current = statusSubscriptionId;
+  }, [statusSubscriptionId]);
+  useEffect(() => {
+    logSubscriptionIdRef.current = logSubscriptionId;
+  }, [logSubscriptionId]);
+  useEffect(() => {
+    logServiceRef.current = logService;
+  }, [logService]);
+  useEffect(() => {
+    logFollowRef.current = logFollow;
+  }, [logFollow]);
+  useEffect(() => {
+    logStateRef.current = logState;
+  }, [logState]);
+  useEffect(() => {
+    servicesRef.current = services;
+  }, [services]);
+  useEffect(() => {
+    startLogsRef.current = startLogs;
+  }, [startLogs]);
+
   const stopLogs = useCallback(async (): Promise<void> => {
     try {
       if (!logSubscriptionId) return;
+      stoppingLogsRef.current = true;
       await composeLogsStop({ subscriptionId: logSubscriptionId });
     } catch {
       // non-fatal
@@ -108,24 +142,25 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
   }, [logBuffer, logFollow]);
 
   useEffect(() => {
-    // Subscribe to logs events
+    // Subscribe to logs and status events ONCE with cleanup; rely on refs for current state
     const win = window as unknown as {
       composeEvents?: {
-        onStatusUpdate: (cb: (payload: unknown) => void) => void;
-        onLogsData: (cb: (payload: unknown) => void) => void;
-        onLogsClosed: (cb: (payload: unknown) => void) => void;
-        onLogsError: (cb: (payload: unknown) => void) => void;
+        onStatusUpdate: (cb: (payload: unknown) => void) => (() => void) | void;
+        onLogsData: (cb: (payload: unknown) => void) => (() => void) | void;
+        onLogsClosed: (cb: (payload: unknown) => void) => (() => void) | void;
+        onLogsError: (cb: (payload: unknown) => void) => (() => void) | void;
       };
     };
     const onStatus = (payload: unknown) => {
       const evt = payload as { subscriptionId: string; services: ComposeServiceStatus[] };
-      // Accept events if subscription id matches, or before id is established
-      if (statusSubscriptionId && evt.subscriptionId !== statusSubscriptionId) return;
+      const currentStatusId = statusSubscriptionIdRef.current;
+      if (currentStatusId && evt.subscriptionId !== currentStatusId) return;
       setServices(evt.services);
     };
     const onData = (payload: unknown) => {
       const evt = payload as ComposeLogsDataEvent;
-      if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
+      const currentLogId = logSubscriptionIdRef.current;
+      if (!currentLogId || evt.subscriptionId !== currentLogId) return;
       const lines = String(evt.chunk)
         .split(/\n/)
         .filter((l) => l.length > 0);
@@ -134,14 +169,14 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
           const next = prev.concat(lines);
           return next.length <= LOG_RING_MAX ? next : next.slice(next.length - LOG_RING_MAX);
         });
-        if (logState !== "connected") setLogState("connected");
+        if (logStateRef.current !== "connected") setLogState("connected");
       }
       if (lines.length > 0) {
         setLogCounts((prev) => {
           const next = { ...prev };
           for (const line of lines) {
-            next[""] = (next[""] ?? 0) + 1; // All tab
-            const svc = logService ? logService : parseServiceNameFromLine(line);
+            next[""] = (next[""] ?? 0) + 1;
+            const svc = logServiceRef.current ? logServiceRef.current : parseServiceNameFromLine(line);
             if (svc) next[svc] = (next[svc] ?? 0) + 1;
           }
           return next;
@@ -150,36 +185,46 @@ export const DeploymentRunPanel: React.FC<DeploymentRunPanelProps> = ({ deployme
     };
     const onClosed = (payload: unknown) => {
       const evt = payload as ComposeLogsClosedEvent;
-      if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
+      const currentLogId = logSubscriptionIdRef.current;
+      if (!currentLogId || evt.subscriptionId !== currentLogId) return;
       setLogSubscriptionId(null);
-      // Avoid reconnect loop when no services are available yet
-      if (logFollow && services.length > 0) {
+      if (stoppingLogsRef.current) {
+        stoppingLogsRef.current = false;
+        setLogState("stopped");
+        return;
+      }
+      if (logFollowRef.current && servicesRef.current.length > 0) {
         setLogState("reconnecting");
-        void startLogs(false);
+        void startLogsRef.current?.(false);
       } else {
         setLogState("stopped");
       }
     };
     const onError = (payload: unknown) => {
       const evt = payload as ComposeLogsErrorEvent;
-      if (!logSubscriptionId || evt.subscriptionId !== logSubscriptionId) return;
+      const currentLogId = logSubscriptionIdRef.current;
+      if (!currentLogId || evt.subscriptionId !== currentLogId) return;
       setMessage(evt.message);
       setLogBuffer((prev) => prev.concat([`[error] ${evt.message}`]));
     };
-    win.composeEvents?.onStatusUpdate(onStatus);
-    win.composeEvents?.onLogsData(onData);
-    win.composeEvents?.onLogsClosed(onClosed);
-    win.composeEvents?.onLogsError(onError);
+
+    const off1 = win.composeEvents?.onStatusUpdate(onStatus);
+    const off2 = win.composeEvents?.onLogsData(onData);
+    const off3 = win.composeEvents?.onLogsClosed(onClosed);
+    const off4 = win.composeEvents?.onLogsError(onError);
     return () => {
-      // best-effort: no off() provided; new handlers replace page lifecycle
+      if (typeof off1 === "function") off1();
+      if (typeof off2 === "function") off2();
+      if (typeof off3 === "function") off3();
+      if (typeof off4 === "function") off4();
     };
-  }, [statusSubscriptionId, logSubscriptionId, logService, logFollow, logState, startLogs, services.length]);
+  }, []);
 
   // Restart logs stream when selected service changes and a stream is active
   useEffect(() => {
-    if (!logSubscriptionId) return;
-    void startLogs();
-  }, [logService, logSubscriptionId, startLogs]);
+    if (!logSubscriptionIdRef.current) return;
+    void startLogsRef.current?.();
+  }, [logService]);
 
   // Ensure counts map includes all current services
   useEffect(() => {

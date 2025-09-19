@@ -10,6 +10,7 @@ import type {
   ComposeUpResponse,
 } from "@shared/ipc";
 import { ComposeChannels, ComposeEventChannels } from "@shared/ipc";
+import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
 import { DeploymentSchema } from "@shared/types/deployments";
 import { renderAsteriskConfig } from "@main/services/asterisk-config";
 import { buildComposeObject, getRoleForServiceName, writeComposeFile } from "@main/services/compose-writer";
@@ -85,7 +86,7 @@ export function registerComposeIpcHandlers(): void {
       if (needsWrite) {
         // Write using deployment's asterisk config (falls back to defaults inside service)
         try {
-          await renderAsteriskConfig(dep.asterisk ?? ({} as never), undefined, astConfDir, false);
+          await renderAsteriskConfig(dep.asterisk ?? DEFAULT_ASTERISK_CONFIG, undefined, astConfDir, false);
         } catch {
           // Best-effort: continue even if write fails; docker will surface errors
         }
