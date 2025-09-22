@@ -172,3 +172,83 @@ export function pickProviderApiKeys(
   }
   return result;
 }
+
+/** API Validation types and enums */
+
+/**
+ * Validation types for API key testing.
+ */
+export type ApiValidationType = "presence" | "api" | "fallback";
+
+/**
+ * Error codes for API validation failures.
+ */
+export type ApiValidationErrorCode =
+  | "invalid_key"
+  | "quota_exceeded"
+  | "network_error"
+  | "timeout"
+  | "unauthorized"
+  | "forbidden"
+  | "not_found"
+  | "rate_limited"
+  | "server_error"
+  | "unknown_error";
+
+/**
+ * Result of API key validation.
+ */
+export interface ApiValidationResult {
+  ok: boolean;
+  message: string;
+  validationType: ApiValidationType;
+  errorCode?: ApiValidationErrorCode;
+  details?: string;
+}
+
+/**
+ * Configuration for API validation endpoints.
+ */
+export interface ApiValidationEndpoint {
+  url: string;
+  method: "GET" | "POST";
+  headers?: Record<string, string>;
+  body?: unknown;
+  timeout?: number;
+}
+
+/**
+ * Provider-specific API validation configurations.
+ */
+export const API_VALIDATION_ENDPOINTS: Record<ProviderId, ApiValidationEndpoint> = {
+  openai: {
+    url: "https://api.openai.com/v1/models",
+    method: "GET",
+    timeout: 5000,
+  },
+  anthropic: {
+    url: "https://api.anthropic.com/v1/messages",
+    method: "POST",
+    body: {
+      model: "claude-3-haiku-20240307",
+      max_tokens: 1,
+      messages: [{ role: "user", content: "test" }]
+    },
+    timeout: 5000,
+  },
+  gemini: {
+    url: "https://generativelanguage.googleapis.com/v1/models",
+    method: "GET",
+    timeout: 5000,
+  },
+  deepgram: {
+    url: "https://api.deepgram.com/v1/projects",
+    method: "GET",
+    timeout: 5000,
+  },
+  elevenlabs: {
+    url: "https://api.elevenlabs.io/v1/user",
+    method: "GET",
+    timeout: 5000,
+  },
+};

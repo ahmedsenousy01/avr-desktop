@@ -11,6 +11,7 @@ import type { ProviderId, ProvidersPartial } from "@shared/types/providers";
 import { ProvidersChannels } from "@shared/ipc";
 import { PROVIDER_IDS } from "@shared/types/providers";
 import { readProviders, saveProviders } from "@main/services/providers-store";
+import { validateApiKey } from "@main/services/api-validators";
 
 const ProviderIdSchema = z.enum([...PROVIDER_IDS] as [ProviderId, ...ProviderId[]]);
 const ProvidersGetSchema = z.object({ id: ProviderIdSchema });
@@ -26,7 +27,10 @@ const ProvidersPartialObjectSchema = z
   .partial();
 
 const ProvidersSaveSchema = z.object({ partial: ProvidersPartialObjectSchema });
-const ProvidersTestSchema = z.object({ id: ProviderIdSchema });
+const ProvidersTestSchema = z.object({
+  id: ProviderIdSchema,
+  apiKey: z.string().optional()
+});
 
 export function registerProvidersIpcHandlers(): void {
   // providers:list → { providers }
@@ -53,15 +57,37 @@ export function registerProvidersIpcHandlers(): void {
     return { providers };
   });
 
-  // providers:test { id } → { ok, message }
+  // providers:test { id } → { ok, message, validationType, errorCode?, details? }
   ipcMain.handle(ProvidersChannels.test, async (_event, req: unknown): Promise<ProvidersTestResponse> => {
     try {
       const parsed = ProvidersTestSchema.parse(req);
-      const providers = readProviders();
-      const key = providers[parsed.id].apiKey.trim();
-      const ok = key.length > 0;
-      const message = ok ? "Key present" : "Missing or empty apiKey";
-      return { ok, message };
+      // Use provided key if available, otherwise get from stored providers
+      const key = parsed.apiKey !== undefined
+        ? parsed.apiKey.trim()
+        : readProviders()[parsed.id].apiKey.trim();
+
+      try {
+        // Perform actual API validation
+        const result = await validateApiKey(parsed.id, key, true);
+
+        return {
+          ok: result.ok,
+          message: result.message,
+          validationType: result.validationType,
+          errorCode: result.errorCode,
+          details: result.details,
+        };
+      } catch (validationError) {
+        // If validation service fails completely, fall back to presence check
+        const ok = key.length > 0;
+        return {
+          ok,
+          message: ok ? "Key present (validation service unavailable)" : "Missing or empty apiKey",
+          validationType: "fallback",
+          errorCode: ok ? undefined : "invalid_key",
+          details: validationError instanceof Error ? validationError.message : "Validation service error",
+        };
+      }
     } catch {
       throw new Error("Invalid provider id");
     }

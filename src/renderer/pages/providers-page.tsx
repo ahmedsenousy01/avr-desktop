@@ -75,21 +75,29 @@ export const ProvidersPage: React.FC = () => {
               }
             }}
             onCancel={() => setEditingId(null)}
-            onTest={async () => {
+            onTest={async (keyToTest: string) => {
               if (!providersApi) {
-                const present = providers[editingId].apiKey.trim().length > 0;
-                const res = present
-                  ? { ok: true, message: "Key present" }
-                  : { ok: false, message: "Missing or empty apiKey" };
+                const present = keyToTest.trim().length > 0;
+                const res = {
+                  ok: present,
+                  message: present ? "Key present" : "Missing or empty apiKey",
+                  validationType: "presence" as const,
+                  errorCode: present ? undefined : ("invalid_key" as const)
+                };
                 showToast(res.message, res.ok ? "success" : "error");
                 return res;
               }
               try {
-                const res = await providersApi.test({ id: editingId });
+                const res = await providersApi.test({ id: editingId, apiKey: keyToTest });
                 showToast(res.message, res.ok ? "success" : "error");
                 return res;
               } catch {
-                const res = { ok: false, message: "Test failed" } as const;
+                const res = {
+                  ok: false,
+                  message: "Test failed",
+                  validationType: "fallback" as const,
+                  errorCode: "unknown_error" as const
+                };
                 showToast(res.message, "error");
                 return res;
               }

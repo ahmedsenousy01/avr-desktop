@@ -1,6 +1,6 @@
 import type { AsteriskConfig } from "./types/asterisk";
 import type { PreflightItem, PreflightSeverity } from "./types/preflight";
-import type { ProviderId, Providers, ProvidersPartial } from "./types/providers";
+import type { ProviderId, Providers, ProvidersPartial, ApiValidationType, ApiValidationErrorCode } from "./types/providers";
 
 // Providers IPC channels
 export const ProvidersChannels = {
@@ -33,11 +33,15 @@ export interface ProvidersSaveResponse {
 
 export interface ProvidersTestRequest {
   id: ProviderId;
+  apiKey?: string; // Optional: if provided, test this key instead of stored key
 }
 
 export interface ProvidersTestResponse {
   ok: boolean;
   message: string;
+  validationType: ApiValidationType;
+  errorCode?: ApiValidationErrorCode;
+  details?: string;
 }
 
 // Typed API exposed via preload (window.providers)
