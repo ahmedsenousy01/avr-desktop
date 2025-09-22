@@ -1,4 +1,5 @@
 // @vitest-environment jsdom
+import type { ValidationResult } from "../provider-form";
 import React from "react";
 import { cleanup, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
@@ -10,7 +11,7 @@ const Harness: React.FC<{
   initialKey: string;
   onSave: () => Promise<void> | void;
   onCancel?: () => void;
-  onTest: () => Promise<{ ok: boolean; message: string }>;
+  onTest: (keyToTest: string) => Promise<ValidationResult>;
   onChangeSpy?: (v: string) => void;
 }> = ({ initialKey, onSave, onCancel, onTest, onChangeSpy }) => {
   const [key, setKey] = React.useState(initialKey);
@@ -38,7 +39,9 @@ describe("ProviderForm", () => {
     const onChange = vi.fn();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onCancel = vi.fn();
-    const onTest = vi.fn().mockResolvedValue({ ok: true, message: "Key present" });
+    const onTest = vi.fn(
+      async (_key: string) => ({ ok: true, message: "Key present", validationType: "presence" }) as ValidationResult
+    );
     const { unmount } = render(
       <ProviderForm
         providerId="openai"
@@ -58,7 +61,10 @@ describe("ProviderForm", () => {
     const onChange = vi.fn();
     const onSave = vi.fn().mockResolvedValue(undefined);
     const onCancel = vi.fn();
-    const onTest = vi.fn().mockResolvedValue({ ok: false, message: "Missing or empty apiKey" });
+    const onTest = vi.fn(
+      async (_key: string) =>
+        ({ ok: false, message: "Missing or empty apiKey", validationType: "presence" }) as ValidationResult
+    );
     render(
       <ProviderForm
         providerId="openai"
@@ -77,7 +83,9 @@ describe("ProviderForm", () => {
   it("invokes onChange when input value changes", async () => {
     const onChange = vi.fn();
     const onSave = vi.fn().mockResolvedValue(undefined);
-    const onTest = vi.fn().mockResolvedValue({ ok: true, message: "Key present" });
+    const onTest = vi.fn(
+      async (_key: string) => ({ ok: true, message: "Key present", validationType: "presence" }) as ValidationResult
+    );
 
     render(
       <Harness
@@ -94,7 +102,9 @@ describe("ProviderForm", () => {
 
   it("enables Save when dirty and calls onSave on click", async () => {
     const onSave = vi.fn().mockResolvedValue(undefined);
-    const onTest = vi.fn().mockResolvedValue({ ok: true, message: "Key present" });
+    const onTest = vi.fn(
+      async (_key: string) => ({ ok: true, message: "Key present", validationType: "presence" }) as ValidationResult
+    );
 
     render(
       <Harness

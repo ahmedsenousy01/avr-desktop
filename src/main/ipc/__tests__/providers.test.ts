@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type * as ApiValidatorsModule from "@main/services/api-validators";
 import type * as ProvidersStoreModule from "@main/services/providers-store";
 import type { Providers } from "@shared/types/providers";
 import { ProvidersChannels } from "@shared/ipc";
@@ -30,6 +31,33 @@ vi.mock("@main/services/providers-store", async () => {
     ...actual,
     readProviders: vi.fn(actual.readProviders),
     saveProviders: vi.fn(actual.saveProviders),
+  };
+});
+
+// Mock API validation to avoid real network calls; return presence-only results
+vi.mock("@main/services/api-validators", async () => {
+  const actual = await vi.importActual<typeof ApiValidatorsModule>("@main/services/api-validators");
+  return {
+    ...actual,
+    validateApiKey: vi.fn(async (_id, key: string) => {
+      const trimmed = key.trim();
+      if (trimmed.length === 0) {
+        return {
+          ok: false,
+          message: "Missing or empty apiKey",
+          validationType: "presence",
+          errorCode: "invalid_key",
+          details: undefined,
+        } as const;
+      }
+      return {
+        ok: true,
+        message: "Key present",
+        validationType: "presence",
+        errorCode: undefined,
+        details: undefined,
+      } as const;
+    }),
   };
 });
 
@@ -81,10 +109,22 @@ describe("providers IPC", () => {
   it("providers:test returns presence result", async () => {
     vi.mocked(store).readProviders.mockReturnValue({ ...defaults, deepgram: { apiKey: "" } });
     const res1 = await invoke(ProvidersChannels.test, { id: "deepgram" });
-    expect(res1).toEqual({ ok: false, message: "Missing or empty apiKey" });
+    expect(res1).toEqual({
+      ok: false,
+      message: "Missing or empty apiKey",
+      validationType: "presence",
+      errorCode: "invalid_key",
+      details: undefined,
+    });
 
     vi.mocked(store).readProviders.mockReturnValue({ ...defaults, deepgram: { apiKey: "z" } });
     const res2 = await invoke(ProvidersChannels.test, { id: "deepgram" });
-    expect(res2).toEqual({ ok: true, message: "Key present" });
+    expect(res2).toEqual({
+      ok: true,
+      message: "Key present",
+      validationType: "presence",
+      errorCode: undefined,
+      details: undefined,
+    });
   });
 });
