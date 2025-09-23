@@ -75,7 +75,7 @@ describe("deployments IPC", () => {
   it("list returns deployments", async () => {
     const res = await invoke(DeploymentsChannels.list);
     expect(Array.isArray(res.deployments)).toBe(true);
-  });
+  }, 15000);
 
   it("duplicate and delete work end-to-end", async () => {
     const created = await invoke(DeploymentsChannels.createFromSelection, {

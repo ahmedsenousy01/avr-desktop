@@ -55,11 +55,7 @@ export function EnvServicePanel({
     return ids;
   }, [rows]);
 
-  const missingProviders: ProviderId[] = useMemo(() => {
-    return providerIdsForService.filter(
-      (pid) => providerPresence?.[pid] === false || providerPresence?.[pid] === undefined
-    );
-  }, [providerIdsForService, providerPresence]);
+  // Missing providers are computed in ProviderBadges for display
 
   const [revealedKeys, setRevealedKeys] = useState<Record<string, boolean>>({});
 
@@ -90,30 +86,10 @@ export function EnvServicePanel({
       <div className="flex items-center justify-between bg-gray-50 px-3 py-2">
         <div className="font-medium">{displayName ?? serviceName}</div>
         <div className="flex items-center gap-2">
-          {missingProviders.length > 0 && (
-            <span
-              className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
-              title={`Missing provider key${missingProviders.length > 1 ? "s" : ""}: ${missingProviders.join(", ")}`}
-            >
-              Missing keys: {missingProviders.join(", ")}
-            </span>
-          )}
-          {providerIdsForService.map((pid) => {
-            const present = providerPresence?.[pid];
-            return (
-              <span
-                key={pid}
-                className={
-                  present
-                    ? "rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"
-                    : "rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
-                }
-                title={present ? `${pid} key present` : `${pid} key missing`}
-              >
-                {pid}: {present ? "Present" : "Missing"}
-              </span>
-            );
-          })}
+          <ProviderBadges
+            providerIds={providerIdsForService}
+            presence={providerPresence}
+          />
           <span className="rounded bg-blue-100 px-2 py-0.5 text-xs font-medium text-blue-700">Added {addedCount}</span>
           <span className="rounded bg-gray-100 px-2 py-0.5 text-xs font-medium text-gray-700">
             Removed {removedCount}
@@ -189,5 +165,43 @@ export function EnvServicePanel({
         </table>
       </div>
     </div>
+  );
+}
+
+function ProviderBadges({
+  providerIds,
+  presence,
+}: {
+  providerIds: ProviderId[];
+  presence: Partial<Record<ProviderId, boolean>> | undefined;
+}) {
+  const missing = providerIds.filter((pid) => presence?.[pid] === false || presence?.[pid] === undefined);
+  return (
+    <>
+      {missing.length > 0 && (
+        <span
+          className="rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+          title={`Missing provider key${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`}
+        >
+          Missing keys: {missing.join(", ")}
+        </span>
+      )}
+      {providerIds.map((pid) => {
+        const present = presence?.[pid];
+        return (
+          <span
+            key={pid}
+            className={
+              present
+                ? "rounded bg-emerald-100 px-2 py-0.5 text-xs font-medium text-emerald-700"
+                : "rounded bg-amber-100 px-2 py-0.5 text-xs font-medium text-amber-800"
+            }
+            title={present ? `${pid} key present` : `${pid} key missing`}
+          >
+            {pid}: {present ? "Present" : "Missing"}
+          </span>
+        );
+      })}
+    </>
   );
 }

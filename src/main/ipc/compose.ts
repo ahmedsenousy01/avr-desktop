@@ -15,8 +15,10 @@ import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
 import { DeploymentSchema } from "@shared/types/deployments";
 import { renderAsteriskConfig } from "@main/services/asterisk-config";
 import { buildComposeObject, getRoleForServiceName, writeComposeFile } from "@main/services/compose-writer";
+import { ensureDeploymentEnvSeeded } from "@main/services/deployment-env-store";
 import { findDeploymentDirById } from "@main/services/deployments-store";
 import { getFriendlyDockerErrorMessage, runDocker, runDockerStream } from "@main/services/docker-cli";
+import { ENV_REGISTRY } from "@main/services/env-registry";
 import { readProviders } from "@main/services/providers-store";
 
 // Runtime type guards to avoid unsafe casts
@@ -419,9 +421,22 @@ export function registerComposeIpcHandlers(): void {
       const prefix = `${dep.slug}-`;
       const suffix = slugServiceName.startsWith(prefix) ? slugServiceName.slice(prefix.length) : slugServiceName;
       const exampleServiceName = `avr-${suffix}`;
-      return { exampleServiceName, slugServiceName };
+      const displayName = slugServiceName; // already slugged
+      return { exampleServiceName, slugServiceName, displayName };
     });
 
-    return { slug: dep.slug, services };
+    // Optional enrichments
+    const variablesMeta: Record<string, { name: string; required: boolean; defaultValue?: string }[]> = {};
+    for (const s of ENV_REGISTRY.services) {
+      variablesMeta[s.serviceName] = s.variables.map((v) => ({
+        name: v.name,
+        required: v.required,
+        defaultValue: v.defaultValue,
+      }));
+    }
+
+    const env = ensureDeploymentEnvSeeded(dep.id);
+
+    return { slug: dep.slug, services, variablesMeta, values: env.services };
   });
 }

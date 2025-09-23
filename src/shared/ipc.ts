@@ -295,11 +295,15 @@ export interface ComposePlanRequest {
 export interface ComposePlannedService {
   exampleServiceName: string; // e.g., avr-sts-gemini
   slugServiceName: string; // e.g., ${slug}-sts-gemini
+  displayName?: string; // optional precomputed display name for UI
 }
 
 export interface ComposePlanResponse {
   slug: string;
   services: ComposePlannedService[]; // in compose order
+  // Optional enrichments for UI
+  variablesMeta?: Record<string, { name: string; required: boolean; defaultValue?: string }[]>;
+  values?: Record<string, Record<string, string>>;
 }
 
 export type ComposePlanApi = {

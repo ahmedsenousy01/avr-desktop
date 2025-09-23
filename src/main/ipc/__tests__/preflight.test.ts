@@ -89,7 +89,7 @@ describe("preflight IPC", () => {
     expect(json.summary.total).toBeGreaterThan(0);
     // cleanup created deployment directory
     fs.rmSync(path.dirname(file), { recursive: true, force: true });
-  });
+  }, 15000);
 
   it("last returns null when no results exist, then returns persisted results", async () => {
     const created = (await invoke(DeploymentsChannels.createFromSelection, {

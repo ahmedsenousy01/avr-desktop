@@ -1,20 +1,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { EnvRegistry, EnvVariableMeta } from "@main/services/env-registry";
-import type { GetDeploymentEnvResponse, ValidatePresenceResponse } from "@shared/types/env";
+import type { GetDeploymentEnvResponse } from "@shared/types/env";
 import type { ProviderId } from "@shared/types/providers";
 import { EnvServicePanel } from "@renderer/components/env-service-panel";
 import { composePlanGet } from "@renderer/lib/api";
 
-function getDisplayName(slug: string, exampleServiceName: string): string {
-  // exampleServiceName like "avr-sts-gemini" -> suffix after "avr-"
-  const suffix = exampleServiceName.startsWith("avr-") ? exampleServiceName.slice(4) : exampleServiceName;
-  return `${slug}-${suffix}`;
-}
-
 export function EnvEditor({ deploymentId }: { deploymentId?: string }) {
   const [data, setData] = useState<GetDeploymentEnvResponse | null>(null);
-  const [_validation, setValidation] = useState<ValidatePresenceResponse | null>(null);
   const [registry, setRegistry] = useState<EnvRegistry | null>(null);
   const [revealAll, setRevealAll] = useState(false);
   const [providerPresence, setProviderPresence] = useState<Record<ProviderId, boolean>>(
@@ -22,26 +15,22 @@ export function EnvEditor({ deploymentId }: { deploymentId?: string }) {
   );
   const [deploymentSlug, setDeploymentSlug] = useState<string | undefined>(undefined);
   const [composeServices, setComposeServices] = useState<string[] | null>(null); // slugged names
+  const [displayNameByExample, setDisplayNameByExample] = useState<Record<string, string>>({});
+  const [planValues, setPlanValues] = useState<Record<string, Record<string, string>> | null>(null);
+  // planMeta reserved for future use; not needed in the renderer yet
 
   useEffect(() => {
     (async () => {
       const envApi = window.env;
       const providersApi = window.providers;
-      const deploymentsApi = window.deployments;
-      const composeApi = window.compose; // legacy generate
+      // deployments API no longer needed; plan returns slug
       if (!deploymentId || !envApi) {
         setData(null);
-        setValidation(null);
         return;
       }
-      const [reg, res, val] = await Promise.all([
-        envApi.getRegistry(),
-        envApi.getDeploymentEnv({ deploymentId }),
-        envApi.validatePresence({ deploymentId }),
-      ]);
+      const [reg, res] = await Promise.all([envApi.getRegistry(), envApi.getDeploymentEnv({ deploymentId })]);
       setRegistry(reg as EnvRegistry);
       setData(res);
-      setValidation(val);
 
       if (providersApi) {
         const providersList = await providersApi.list();
@@ -57,38 +46,25 @@ export function EnvEditor({ deploymentId }: { deploymentId?: string }) {
         setProviderPresence({} as Record<ProviderId, boolean>);
       }
 
-      // Fetch slug and compose services for strict filtering
-      try {
-        if (deploymentsApi) {
-          const dep = await deploymentsApi.get({ id: deploymentId });
-          setDeploymentSlug(dep.slug);
-        } else {
-          setDeploymentSlug(undefined);
-        }
-      } catch {
-        setDeploymentSlug(undefined);
-      }
-
-      // Prefer plan endpoint (no write); fallback to generate
       try {
         const plan = await composePlanGet({ deploymentId });
         setComposeServices(plan.services.map((s) => s.slugServiceName));
+        setDisplayNameByExample(
+          Object.fromEntries(plan.services.map((s) => [s.exampleServiceName, s.displayName ?? s.slugServiceName]))
+        );
+        setPlanValues(plan.values ?? null);
+        setDeploymentSlug(plan.slug);
       } catch {
-        try {
-          if (composeApi) {
-            const gen = await composeApi.generate({ deploymentId });
-            setComposeServices(gen.services);
-          } else {
-            setComposeServices(null);
-          }
-        } catch {
-          setComposeServices(null);
-        }
+        setComposeServices(null);
+        setDeploymentSlug(undefined);
       }
     })();
   }, [deploymentId]);
 
-  const valuesByService = useMemo(() => data?.env?.services ?? ({} as Record<string, Record<string, string>>), [data]);
+  const valuesByService = useMemo(
+    () => planValues ?? data?.env?.services ?? ({} as Record<string, Record<string, string>>),
+    [planValues, data]
+  );
 
   const allowedExampleNames = useMemo(() => {
     if (!composeServices || !deploymentSlug) return null;
@@ -154,7 +130,7 @@ export function EnvEditor({ deploymentId }: { deploymentId?: string }) {
           values={valuesByService[svc.serviceName]}
           masked={!revealAll}
           providerPresence={providerPresence}
-          displayName={deploymentSlug ? getDisplayName(deploymentSlug, svc.serviceName) : undefined}
+          displayName={displayNameByExample[svc.serviceName]}
           onChange={(next) => {
             if (!data?.env || !next) return;
             const updated = { ...data.env.services };
