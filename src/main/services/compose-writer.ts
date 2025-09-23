@@ -60,6 +60,129 @@ export interface ComposeBuildResult {
   yaml: string;
 }
 
+export type ComposePlan = {
+  slug: string;
+  services: { exampleServiceName: string; slugServiceName: string; displayName: string }[];
+  values: Record<string, Record<string, string>>; // keyed by example service name
+};
+
+/**
+ * Builds a compose plan suitable for both compose generation and Env Editor.
+ * - Uses slugged service names for actual docker compose services
+ * - Returns example service name mapping and resolved env values (placeholders resolved)
+ */
+export function buildComposePlan(
+  deployment: Deployment,
+  providers: Providers,
+  asteriskConfig?: AsteriskConfig
+): ComposePlan {
+  const { spec } = buildComposeObject(deployment, providers, asteriskConfig);
+  const slug = deployment.slug;
+
+  const services = Object.keys(spec.services).map((slugServiceName) => {
+    const prefix = `${slug}-`;
+    const suffix = slugServiceName.startsWith(prefix) ? slugServiceName.slice(prefix.length) : slugServiceName;
+    const exampleServiceName = `avr-${suffix}`;
+    const displayName = slugServiceName;
+    return { exampleServiceName, slugServiceName, displayName };
+  });
+
+  // Resolve values for each example service name from the materialized env
+  const deploymentEnv = ensureDeploymentEnvSeeded(deployment.id);
+  const exampleToSlug: Record<string, string> = Object.fromEntries(
+    services.map((s) => [s.exampleServiceName, s.slugServiceName])
+  );
+  const resolveName = (name: string) => exampleToSlug[name] ?? name;
+
+  const values: Record<string, Record<string, string>> = {};
+  for (const [exampleServiceName, vars] of Object.entries(deploymentEnv.services)) {
+    const resolved: Record<string, string> = {};
+    for (const [k, v] of Object.entries(vars)) {
+      resolved[k] = resolveServiceTemplatesInValue(String(v), resolveName);
+    }
+    values[exampleServiceName] = resolved;
+  }
+
+  return { slug, services, values };
+}
+
+// Centralized defaults per service fragment.
+// Only include stable, example-backed defaults here. Dynamic items are applied below.
+type ServiceDefaults = {
+  environment?: Record<string, string>;
+  ports?: (string | number)[];
+  volumes?: string[];
+};
+
+const DEFAULTS_BY_FRAGMENT: Partial<Record<ServiceFragmentId, ServiceDefaults>> = {
+  core: {
+    ports: ["5001:5001"],
+  },
+  // LLM
+  "llm-openai": {
+    volumes: ["./tools:/usr/src/app/tools"],
+  },
+  // ASR
+  "asr-google": {
+    volumes: ["./google.json:/usr/src/app/google.json"],
+  },
+  "asr-vosk": {
+    volumes: ["./model:/usr/src/app/model"],
+  },
+  // TTS
+  "tts-google": {
+    volumes: ["./google.json:/usr/src/app/google.json"],
+  },
+  // STS fragments currently have no static ports/vols beyond env JSON
+};
+
+function getStsWsPort(fragmentId: ServiceFragmentId): number | null {
+  switch (fragmentId) {
+    case "sts-openai-realtime":
+      return 6030;
+    case "sts-ultravox":
+      return 6031;
+    case "sts-gemini":
+      return 6037;
+    default:
+      return null;
+  }
+}
+
+function enforceCoreEnvShape(
+  deploymentType: Deployment["type"],
+  namedFragments: NamedFragment[],
+  env: Record<string, string>
+): void {
+  if (deploymentType === "sts") {
+    delete env["ASR_URL"];
+    delete env["LLM_URL"];
+    delete env["TTS_URL"];
+    // Avoid startup greeting path that uses LLM->TTS in some images
+    delete env["SYSTEM_MESSAGE"];
+    const sts = namedFragments.find((f) => f.fragmentId.startsWith("sts-"));
+    if (sts) {
+      const wsPort = getStsWsPort(sts.fragmentId);
+      if (wsPort) env["STS_URL"] = `ws://${sts.serviceName}:${String(wsPort)}`;
+    }
+  } else {
+    delete env["STS_URL"];
+  }
+}
+
+function filterCoreEnvForDeploymentType(
+  deploymentType: Deployment["type"],
+  env: Record<string, string>
+): Record<string, string> {
+  if (deploymentType === "sts") {
+    const allowed = new Set(["PORT", "STS_URL", "INTERRUPT_LISTENING"]);
+    const next: Record<string, string> = {};
+    for (const [k, v] of Object.entries(env)) if (allowed.has(k)) next[k] = v;
+    return next;
+  }
+  return env;
+}
+
 export function buildComposeObject(
   deployment: Deployment,
   providers: Providers,
@@ -92,6 +215,21 @@ export function buildComposeObject(
   );
   const resolveTemplateName = (name: string) => exampleServiceNameToActual[name] ?? name;
 
+  // Fallback resolver for legacy values that still reference raw example hosts (e.g., http://avr-ami:6006)
+  const replaceExampleHostsInValue = (value: string): string => {
+    return value.replace(/\b(https?:\/\/)(avr-[a-z0-9-]+)(\b|:)/gi, (_m, proto: string, host: string, tail: string) => {
+      const actual = exampleServiceNameToActual[host] ?? host;
+      return `${proto}${actual}${tail}`;
+    });
+  };
+
+  // Replace bare example service tokens (e.g., AMI_HOST=avr-asterisk) with slugged names
+  const replaceExampleBareTokensInValue = (value: string): string => {
+    return value.replace(/\b(avr-[a-z0-9-]+)\b/gi, (_m, host: string) => {
+      return exampleServiceNameToActual[host] ?? host;
+    });
+  };
+
   for (const nf of named) {
     const env = getEnvForFragment(providers, nf.fragmentId);
     const maybeImage = FRAGMENT_IMAGE[nf.fragmentId];
@@ -108,17 +246,22 @@ export function buildComposeObject(
       }
     }
 
-    // Inject env/ports/volumes from example files for all fragments
-    // STS examples expose AMI port on host (6006:6006)
-    if (nf.fragmentId === "ami") {
-      if (deployment.type === "sts") {
-        svc.ports = ["6006:6006"];
-      }
+    // Inject centralized defaults
+    const staticDefaults = DEFAULTS_BY_FRAGMENT[nf.fragmentId];
+    if (staticDefaults?.ports) {
+      svc.ports = [...(svc.ports ?? []), ...staticDefaults.ports];
+    }
+    if (staticDefaults?.volumes) {
+      svc.volumes = [...(svc.volumes ?? []), ...staticDefaults.volumes];
+    }
+    if (staticDefaults?.environment) {
+      for (const [k, v] of Object.entries(staticDefaults.environment)) env[k] = v;
     }
 
-    if (nf.fragmentId === "core") {
-      // Core always exposes 5001
-      svc.ports = ["5001:5001"];
+    // Mode-aware adjustments not expressible in static defaults
+    // STS examples expose AMI port on host (6006:6006)
+    if (nf.fragmentId === "ami" && deployment.type === "sts") {
+      svc.ports = ["6006:6006"];
     }
 
     // STS providers (examples): add ports and defaults
@@ -132,40 +275,17 @@ export function buildComposeObject(
       // Defaults seeded via EnvRegistry/DeploymentEnv
     }
 
-    // LLM services (modular examples)
-    if (nf.fragmentId === "llm-openai") {
-      // Tools mount used by example for custom tools
-      svc.volumes = [...(svc.volumes ?? []), "./tools:/usr/src/app/tools"];
-    }
-    if (nf.fragmentId === "llm-anthropic") {
-      // Defaults seeded via EnvRegistry/DeploymentEnv
-    }
-
-    // ASR services (modular examples)
-    if (nf.fragmentId === "asr-deepgram") {
-      // Defaults seeded via EnvRegistry/DeploymentEnv
-    }
-    if (nf.fragmentId === "asr-google") {
-      // Mount credentials file used by examples
-      svc.volumes = [...(svc.volumes ?? []), "./google.json:/usr/src/app/google.json"];
-    }
-    if (nf.fragmentId === "asr-vosk") {
-      // Mount model directory used by examples
-      svc.volumes = [...(svc.volumes ?? []), "./model:/usr/src/app/model"];
-    }
-
-    // TTS services (modular examples)
-    if (nf.fragmentId === "tts-google") {
-      // Mount credentials file used by examples
-      svc.volumes = [...(svc.volumes ?? []), "./google.json:/usr/src/app/google.json"];
-    }
+    // LLM/ASR/TTS per-fragment static mounts handled by DEFAULTS_BY_FRAGMENT
 
     // Assign env at the end so additions above are captured
     // 1) Merge per-service DeploymentEnv values (registry uses example service names like "avr-*")
     const registryServiceName = `avr-${getServiceSuffixForFragment(nf.fragmentId)}`;
     const userVars = deploymentEnv.services[registryServiceName] ?? {};
     for (const [k, raw] of Object.entries(userVars)) {
-      const resolved = resolveServiceTemplatesInValue(String(raw), resolveTemplateName);
+      const s = String(raw);
+      const templated = resolveServiceTemplatesInValue(s, resolveTemplateName);
+      const withHosts = replaceExampleHostsInValue(templated);
+      const resolved = replaceExampleBareTokensInValue(withHosts);
       env[k] = resolved;
     }
 
@@ -176,7 +296,14 @@ export function buildComposeObject(
       }
     }
 
-    if (Object.keys(env).length > 0) svc.environment = env;
+    // Now enforce core env shape for STS vs modular after merges, so unwanted keys cannot reappear
+    if (nf.fragmentId === "core") {
+      enforceCoreEnvShape(deployment.type, named, env);
+      const filtered = filterCoreEnvForDeploymentType(deployment.type, env);
+      if (Object.keys(filtered).length > 0) svc.environment = filtered;
+    } else {
+      if (Object.keys(env).length > 0) svc.environment = env;
+    }
 
     services[nf.serviceName] = svc;
   }

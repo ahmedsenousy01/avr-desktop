@@ -14,8 +14,13 @@ import { ComposeChannels, ComposeEventChannels, ComposePlanChannels } from "@sha
 import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
 import { DeploymentSchema } from "@shared/types/deployments";
 import { renderAsteriskConfig } from "@main/services/asterisk-config";
-import { buildComposeObject, getRoleForServiceName, writeComposeFile } from "@main/services/compose-writer";
-import { ensureDeploymentEnvSeeded } from "@main/services/deployment-env-store";
+import {
+  buildComposeObject,
+  buildComposePlan,
+  getRoleForServiceName,
+  writeComposeFile,
+} from "@main/services/compose-writer";
+// import { ensureDeploymentEnvSeeded } from "@main/services/deployment-env-store";
 import { findDeploymentDirById } from "@main/services/deployments-store";
 import { getFriendlyDockerErrorMessage, runDocker, runDockerStream } from "@main/services/docker-cli";
 import { ENV_REGISTRY } from "@main/services/env-registry";
@@ -415,15 +420,7 @@ export function registerComposeIpcHandlers(): void {
     const dep = DeploymentSchema.parse(JSON.parse(fs.readFileSync(depFile, "utf8")));
 
     const providers = readProviders();
-    const { spec } = buildComposeObject(dep, providers, dep.asterisk);
-
-    const services = Object.keys(spec.services).map((slugServiceName) => {
-      const prefix = `${dep.slug}-`;
-      const suffix = slugServiceName.startsWith(prefix) ? slugServiceName.slice(prefix.length) : slugServiceName;
-      const exampleServiceName = `avr-${suffix}`;
-      const displayName = slugServiceName; // already slugged
-      return { exampleServiceName, slugServiceName, displayName };
-    });
+    const plan = buildComposePlan(dep, providers, dep.asterisk);
 
     // Optional enrichments
     const variablesMeta: Record<string, { name: string; required: boolean; defaultValue?: string }[]> = {};
@@ -435,8 +432,6 @@ export function registerComposeIpcHandlers(): void {
       }));
     }
 
-    const env = ensureDeploymentEnvSeeded(dep.id);
-
-    return { slug: dep.slug, services, variablesMeta, values: env.services };
+    return { slug: plan.slug, services: plan.services, variablesMeta, values: plan.values };
   });
 }
