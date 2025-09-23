@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import type { DeploymentsListItem } from "@shared/ipc";
+import { EnvEditor } from "@renderer/components/env-editor";
 import { deploymentsGet, deploymentsList, deploymentsUpdate } from "@renderer/lib/api";
 
 export function EnvironmentPage() {
@@ -59,7 +60,7 @@ export function EnvironmentPage() {
     // Add an empty placeholder row
     let n = 1;
     let key = "NEW_VAR";
-    while (envMap[key] !== undefined || Object.prototype.hasOwnProperty.call(envMap, key)) {
+    while (envMap[key] || Object.prototype.hasOwnProperty.call(envMap, key)) {
       n += 1;
       key = `NEW_VAR_${n}`;
     }
@@ -199,6 +200,8 @@ export function EnvironmentPage() {
           Save
         </button>
       </div>
+
+      <EnvEditor deploymentId={selectedId} />
     </div>
   );
 }

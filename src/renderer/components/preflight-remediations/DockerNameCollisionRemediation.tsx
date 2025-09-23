@@ -9,26 +9,16 @@ interface Props {
 }
 
 export function DockerNameCollisionRemediation({ deploymentId, item, running, onRerun }: Props) {
-  const data = (
-    item as unknown as {
-      data?: { prefix?: string; containers?: string[]; networks?: string[]; volumes?: string[] };
-    }
-  ).data || { prefix: "", containers: [], networks: [], volumes: [] };
-  const containers = Array.isArray((data as { containers?: unknown[] }).containers)
-    ? (data as { containers: string[] }).containers || []
-    : [];
-  const networks = Array.isArray((data as { networks?: unknown[] }).networks)
-    ? (data as { networks: string[] }).networks || []
-    : [];
-  const volumes = Array.isArray((data as { volumes?: unknown[] }).volumes)
-    ? (data as { volumes: string[] }).volumes || []
-    : [];
+  const data = item.data;
+  const containers = Array.isArray(data?.containers) ? data.containers : [];
+  const networks = Array.isArray(data?.networks) ? data.networks : [];
+  const volumes = Array.isArray(data?.volumes) ? data.volumes : [];
 
   const hasAny = containers.length + networks.length + volumes.length > 0;
 
   return (
     <div className="mt-2 text-xs text-slate-800">
-      <div className="mb-1">Resources matching this deployment's prefix may interfere.</div>
+      <div className="mb-1">Resources matching this deployment&apos;s prefix may interfere.</div>
       {hasAny && (
         <div className="grid grid-cols-3 gap-2">
           <div>

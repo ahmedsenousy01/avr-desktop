@@ -1,6 +1,12 @@
 import type { AsteriskConfig } from "./types/asterisk";
 import type { PreflightItem, PreflightSeverity } from "./types/preflight";
-import type { ProviderId, Providers, ProvidersPartial, ApiValidationType, ApiValidationErrorCode } from "./types/providers";
+import type {
+  ApiValidationErrorCode,
+  ApiValidationType,
+  ProviderId,
+  Providers,
+  ProvidersPartial,
+} from "./types/providers";
 
 // Providers IPC channels
 export const ProvidersChannels = {
@@ -275,6 +281,30 @@ export interface ComposeGenerateResponse {
   changed: boolean;
   services: string[];
 }
+
+// Compose planning (no write) -------------------------------------------------
+
+export const ComposePlanChannels = {
+  plan: "compose:plan",
+} as const;
+
+export interface ComposePlanRequest {
+  deploymentId: string;
+}
+
+export interface ComposePlannedService {
+  exampleServiceName: string; // e.g., avr-sts-gemini
+  slugServiceName: string; // e.g., ${slug}-sts-gemini
+}
+
+export interface ComposePlanResponse {
+  slug: string;
+  services: ComposePlannedService[]; // in compose order
+}
+
+export type ComposePlanApi = {
+  plan: (req: ComposePlanRequest) => Promise<ComposePlanResponse>;
+};
 
 export type ComposeApi = {
   generate: (req: ComposeGenerateRequest) => Promise<ComposeGenerateResponse>;

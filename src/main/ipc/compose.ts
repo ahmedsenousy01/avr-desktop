@@ -6,10 +6,11 @@ import { z } from "zod/v4";
 import type {
   ComposeDownResponse,
   ComposeGenerateResponse,
+  ComposePlanResponse,
   ComposeStatusResponse,
   ComposeUpResponse,
 } from "@shared/ipc";
-import { ComposeChannels, ComposeEventChannels } from "@shared/ipc";
+import { ComposeChannels, ComposeEventChannels, ComposePlanChannels } from "@shared/ipc";
 import { DEFAULT_ASTERISK_CONFIG } from "@shared/types/asterisk";
 import { DeploymentSchema } from "@shared/types/deployments";
 import { renderAsteriskConfig } from "@main/services/asterisk-config";
@@ -399,5 +400,28 @@ export function registerComposeIpcHandlers(): void {
     entry.stop();
     statusPollers.delete(parsed.subscriptionId);
     return { stopped: true };
+  });
+
+  // Compose planning (no write)
+  ipcMain.handle(ComposePlanChannels.plan, async (_event, req: unknown): Promise<ComposePlanResponse> => {
+    const parsed = GenerateSchema.parse(req);
+
+    const depDir = findDeploymentDirById(parsed.deploymentId);
+    if (!depDir) throw new Error("Deployment not found");
+    const depFile = path.join(depDir, "deployment.json");
+    if (!fs.existsSync(depFile)) throw new Error("Deployment file is missing");
+    const dep = DeploymentSchema.parse(JSON.parse(fs.readFileSync(depFile, "utf8")));
+
+    const providers = readProviders();
+    const { spec } = buildComposeObject(dep, providers, dep.asterisk);
+
+    const services = Object.keys(spec.services).map((slugServiceName) => {
+      const prefix = `${dep.slug}-`;
+      const suffix = slugServiceName.startsWith(prefix) ? slugServiceName.slice(prefix.length) : slugServiceName;
+      const exampleServiceName = `avr-${suffix}`;
+      return { exampleServiceName, slugServiceName };
+    });
+
+    return { slug: dep.slug, services };
   });
 }

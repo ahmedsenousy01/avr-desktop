@@ -14,6 +14,9 @@ import type {
   ComposeLogsStartResponse,
   ComposeLogsStopRequest,
   ComposeLogsStopResponse,
+  ComposePlanApi,
+  ComposePlanRequest,
+  ComposePlanResponse,
   ComposeStatusResponse,
   ComposeStatusStartRequest,
   ComposeStatusStartResponse,
@@ -42,6 +45,16 @@ import type {
   PreflightRunResponse,
   ProvidersApi,
 } from "@shared/ipc";
+import type {
+  EnvApi,
+  GetDeploymentEnvRequest,
+  GetDeploymentEnvResponse,
+  RemoveDeploymentEnvVarRequest,
+  RemoveDeploymentEnvVarResponse,
+  UpsertDeploymentEnvVarRequest,
+  UpsertDeploymentEnvVarResponse,
+  ValidatePresenceResponse,
+} from "@shared/types/env";
 
 declare global {
   interface Window {
@@ -50,6 +63,8 @@ declare global {
     asterisk?: AsteriskApi;
     preflight?: PreflightApi;
     compose?: ComposeApi;
+    composePlan?: ComposePlanApi;
+    env?: EnvApi;
   }
 }
 
@@ -62,6 +77,9 @@ export const asterisk: AsteriskApi | undefined = window.asterisk;
 export const preflight: PreflightApi | undefined = window.preflight;
 
 export const compose: ComposeApi | undefined = window.compose;
+export const composePlan: ComposePlanApi | undefined = window.composePlan;
+
+export const env: EnvApi | undefined = window.env;
 
 export async function asteriskValidateConfig(
   req: AsteriskValidateConfigRequest
@@ -154,6 +172,11 @@ export async function composeStatus(req: ComposeGenerateRequest): Promise<Compos
   return window.compose.status(req);
 }
 
+export async function composePlanGet(req: ComposePlanRequest): Promise<ComposePlanResponse> {
+  if (!window.composePlan) throw new Error("Compose Plan API is not available in preload");
+  return window.composePlan.plan(req);
+}
+
 export async function composeLogsStart(req: ComposeLogsStartRequest): Promise<ComposeLogsStartResponse> {
   if (!window.compose) throw new Error("Compose API is not available in preload");
   return window.compose.logsStart(req);
@@ -177,4 +200,24 @@ export async function composeStatusStart(req: ComposeStatusStartRequest): Promis
 export async function composeStatusStop(req: ComposeStatusStopRequest): Promise<ComposeStatusStopResponse> {
   if (!window.compose) throw new Error("Compose API is not available in preload");
   return window.compose.statusStop(req);
+}
+
+export async function envGetDeploymentEnv(req: GetDeploymentEnvRequest): Promise<GetDeploymentEnvResponse> {
+  if (!window.env) throw new Error("Env API is not available in preload");
+  return window.env.getDeploymentEnv(req);
+}
+
+export async function envUpsertVar(req: UpsertDeploymentEnvVarRequest): Promise<UpsertDeploymentEnvVarResponse> {
+  if (!window.env) throw new Error("Env API is not available in preload");
+  return window.env.upsertVar(req);
+}
+
+export async function envRemoveVar(req: RemoveDeploymentEnvVarRequest): Promise<RemoveDeploymentEnvVarResponse> {
+  if (!window.env) throw new Error("Env API is not available in preload");
+  return window.env.removeVar(req);
+}
+
+export async function envValidatePresence(req: GetDeploymentEnvRequest): Promise<ValidatePresenceResponse> {
+  if (!window.env) throw new Error("Env API is not available in preload");
+  return window.env.validatePresence(req);
 }

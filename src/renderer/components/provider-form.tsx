@@ -1,6 +1,6 @@
 import React from "react";
 
-import type { ProviderId, ApiValidationType, ApiValidationErrorCode } from "@shared/types/providers";
+import type { ApiValidationErrorCode, ApiValidationType, ProviderId } from "@shared/types/providers";
 
 export interface ValidationResult {
   ok: boolean;
@@ -44,7 +44,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
     lastValidatedKeyRef.current = "";
     setTestResult(null);
     setAutoValidationPending(false);
-  }, [providerId]);
+  }, [providerId, apiKey]);
 
   React.useEffect(() => {
     inputRef.current?.focus();
@@ -67,7 +67,7 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
     setAutoValidationPending(true);
 
     // Debounce validation - wait 1.5 seconds after user stops typing
-    const timeoutId = setTimeout(async () => {
+    const timeoutId = setTimeout(() => {
       // Double-check we're not already validating and key hasn't changed
       if (pending || trimmed !== apiKey.trim()) {
         setAutoValidationPending(false);
@@ -79,12 +79,16 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
         setAutoValidationPending(false);
         setPending(true);
         setTestResult(null);
-        const res = await onTest(trimmed);
-        setTestResult(res);
+        void onTest(trimmed)
+          .then((res) => setTestResult(res))
+          .catch((error) => {
+            console.error("Auto-validation error:", error);
+          })
+          .finally(() => {
+            setPending(false);
+          });
       } catch (error) {
-        console.error('Auto-validation error:', error);
-      } finally {
-        setPending(false);
+        console.error("Auto-validation error:", error);
       }
     }, 1500);
 
@@ -129,7 +133,12 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
     <div style={{ border: "1px solid #e5e7eb", borderRadius: 8, padding: 12 }}>
       <div style={{ fontWeight: 700, textTransform: "capitalize" }}>{providerId}</div>
       <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 8 }}>
-        <label htmlFor={inputId} style={{ width: 120, fontSize: 14 }}>API key</label>
+        <label
+          htmlFor={inputId}
+          style={{ width: 120, fontSize: 14 }}
+        >
+          API key
+        </label>
         <input
           type={revealed ? "text" : "password"}
           value={apiKey}
@@ -145,7 +154,9 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
             fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace",
           }}
           aria-invalid={error ? true : undefined}
-          aria-describedby={[error ? errorId : null, testResult ? resultId : null].filter(Boolean).join(" ") || undefined}
+          aria-describedby={
+            [error ? errorId : null, testResult ? resultId : null].filter(Boolean).join(" ") || undefined
+          }
           onKeyDown={(e) => {
             if (e.key === "Enter" && !pending && isDirty) {
               e.preventDefault();
@@ -181,14 +192,15 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
         </button>
       </div>
       {error && (
-        <div id={errorId} style={{ marginTop: 6, color: "#b91c1c", fontSize: 12 }}>
+        <div
+          id={errorId}
+          style={{ marginTop: 6, color: "#b91c1c", fontSize: 12 }}
+        >
           {error}
         </div>
       )}
       {autoValidationPending && (
-        <div style={{ marginTop: 8, color: "#6b7280", fontSize: 12, fontStyle: "italic" }}>
-          Validating API key...
-        </div>
+        <div style={{ marginTop: 8, color: "#6b7280", fontSize: 12, fontStyle: "italic" }}>Validating API key...</div>
       )}
       {testResult && (
         <div
@@ -197,21 +209,19 @@ export const ProviderForm: React.FC<ProviderFormProps> = ({
           aria-live="polite"
         >
           {testResult.message}
-          {testResult.validationType && (
-            <span style={{
+          <span
+            style={{
               marginLeft: 8,
               fontSize: 10,
               fontWeight: 400,
               opacity: 0.7,
-              textTransform: "uppercase"
-            }}>
-              ({testResult.validationType})
-            </span>
-          )}
+              textTransform: "uppercase",
+            }}
+          >
+            ({testResult.validationType})
+          </span>
           {testResult.details && !testResult.ok && (
-            <div style={{ marginTop: 4, fontSize: 11, fontWeight: 400, opacity: 0.8 }}>
-              {testResult.details}
-            </div>
+            <div style={{ marginTop: 4, fontSize: 11, fontWeight: 400, opacity: 0.8 }}>{testResult.details}</div>
           )}
         </div>
       )}

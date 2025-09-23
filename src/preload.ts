@@ -1,15 +1,18 @@
 // Preload currently does not expose any APIs.
 import { contextBridge, ipcRenderer } from "electron";
 
-import type { AsteriskApi, ComposeApi, DeploymentsApi, PreflightApi, ProvidersApi } from "@shared/ipc";
+import type { AsteriskApi, ComposeApi, ComposePlanApi, DeploymentsApi, PreflightApi, ProvidersApi } from "@shared/ipc";
+import type { EnvApi } from "@shared/types/env";
 import {
   AsteriskChannels,
   ComposeChannels,
   ComposeEventChannels,
+  ComposePlanChannels,
   DeploymentsChannels,
   PreflightChannels,
   ProvidersChannels,
 } from "@shared/ipc";
+import { EnvIpcChannels } from "@shared/types/env";
 
 const providers: ProvidersApi = {
   list: () => ipcRenderer.invoke(ProvidersChannels.list),
@@ -60,6 +63,10 @@ const compose: ComposeApi = {
 };
 
 contextBridge.exposeInMainWorld("compose", compose);
+const composePlan: ComposePlanApi = {
+  plan: (req) => ipcRenderer.invoke(ComposePlanChannels.plan, req),
+};
+contextBridge.exposeInMainWorld("composePlan", composePlan);
 contextBridge.exposeInMainWorld("composeEvents", {
   onStatusUpdate: (cb: (payload: unknown) => void) => {
     const handler = (_e: unknown, payload: unknown) => cb(payload);
@@ -82,3 +89,13 @@ contextBridge.exposeInMainWorld("composeEvents", {
     return () => ipcRenderer.removeListener(ComposeEventChannels.logsError, handler as never);
   },
 });
+
+const env: EnvApi = {
+  getRegistry: () => ipcRenderer.invoke(EnvIpcChannels.getRegistry),
+  getDeploymentEnv: (req) => ipcRenderer.invoke(EnvIpcChannels.getDeploymentEnv, req),
+  upsertVar: (req) => ipcRenderer.invoke(EnvIpcChannels.upsertDeploymentEnvVar, req),
+  removeVar: (req) => ipcRenderer.invoke(EnvIpcChannels.removeDeploymentEnvVar, req),
+  validatePresence: (req) => ipcRenderer.invoke(EnvIpcChannels.validatePresence, req),
+};
+
+contextBridge.exposeInMainWorld("env", env);
