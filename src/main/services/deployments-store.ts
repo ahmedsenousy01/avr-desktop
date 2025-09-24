@@ -148,7 +148,10 @@ export async function updateDeployment(
     const astDir = path.join(dir, "asterisk", "conf");
     if (!fs.existsSync(astDir)) fs.mkdirSync(astDir, { recursive: true });
     // Write templates into asterisk/conf to match compose volume mounts
-    await renderAsteriskConfig(patch.asterisk, undefined, astDir, false);
+    await renderAsteriskConfig(patch.asterisk, undefined, astDir, false, {
+      CORE_HOST: `${next.slug}-avr-core`,
+      CORE_PORT: "5001",
+    });
   }
   return next;
 }

@@ -1,13 +1,14 @@
 import { ipcMain } from "electron";
 import { z } from "zod/v4";
 
-import type { TemplateId } from "@main/services/template-registry";
 import type {
   DeploymentsCreateFromSelectionResponse,
   DeploymentsCreateFromTemplateResponse,
   DeploymentsGetResponse,
 } from "@shared/ipc";
+import type { TemplateId } from "@shared/registry/templates";
 import { DeploymentsChannels } from "@shared/ipc";
+import { TEMPLATE_IDS } from "@shared/registry/templates";
 import { DeploymentSchema } from "@shared/types/deployments";
 import {
   createDeployment,
@@ -17,7 +18,7 @@ import {
   listDeployments,
   updateDeployment,
 } from "@main/services/deployments-store";
-import { TEMPLATE_IDS, templateToDeployment } from "@main/services/template-registry";
+import { templateToDeployment } from "@main/services/template-registry";
 
 const CreateFromTemplateSchema = z.object({
   templateId: z.enum([...TEMPLATE_IDS] as [TemplateId, ...TemplateId[]]),
@@ -27,7 +28,7 @@ const CreateFromTemplateSchema = z.object({
 const ModularProvidersSchema = z.object({
   llm: z.enum(["openai", "anthropic", "gemini"] as const),
   asr: z.enum(["deepgram", "google", "vosk"] as const),
-  tts: z.enum(["elevenlabs", "google"] as const),
+  tts: z.enum(["google"] as const),
 });
 
 const StsProvidersSchema = z.object({
@@ -81,7 +82,7 @@ export function registerDeploymentsIpcHandlers(): void {
       // Ensure required fields for modular are present (guaranteed by our registry mapping)
       const llm = skeleton.providers.llm ?? "openai";
       const asr = skeleton.providers.asr ?? "deepgram";
-      const tts = skeleton.providers.tts ?? "elevenlabs";
+      const tts = skeleton.providers.tts ?? "google";
       const dep = createDeployment({
         type: "modular",
         name: skeleton.name,

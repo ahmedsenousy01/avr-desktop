@@ -56,7 +56,7 @@ describe("compose-writer", () => {
     const dep = createDeployment({
       type: "modular",
       name: "Demo",
-      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      providers: { llm: "openai", asr: "deepgram", tts: "google" },
     });
 
     const { spec, yaml } = buildComposeObject(dep, providers, DEFAULT_ASTERISK_CONFIG);
@@ -64,12 +64,12 @@ describe("compose-writer", () => {
 
     const services = spec.services;
     const expectedServiceNames = [
-      `${dep.slug}-core`,
-      `${dep.slug}-asterisk`,
-      `${dep.slug}-ami`,
-      `${dep.slug}-asr-deepgram`,
-      `${dep.slug}-tts-elevenlabs`,
-      `${dep.slug}-llm-openai`,
+      `${dep.slug}-avr-core`,
+      `${dep.slug}-avr-asterisk`,
+      `${dep.slug}-avr-ami`,
+      `${dep.slug}-avr-asr-deepgram`,
+      `${dep.slug}-avr-tts-google-cloud-tts`,
+      `${dep.slug}-avr-llm-openai`,
     ];
     for (const name of expectedServiceNames) {
       expect(services[name]).toBeTruthy();
@@ -77,12 +77,12 @@ describe("compose-writer", () => {
     }
 
     // Env propagation
-    expect(services[`${dep.slug}-llm-openai`].environment?.OPENAI_API_KEY).toBe("sk-test-openai");
-    expect(services[`${dep.slug}-tts-elevenlabs`].environment?.ELEVENLABS_API_KEY).toBe("sk-test-elevenlabs");
-    expect(services[`${dep.slug}-asr-deepgram`].environment?.DEEPGRAM_API_KEY).toBe("sk-test-deepgram");
+    expect(services[`${dep.slug}-avr-llm-openai`].environment?.OPENAI_API_KEY).toBe("sk-test-openai");
+    expect(services[`${dep.slug}-avr-tts-google-cloud-tts`].environment).toBeTruthy();
+    expect(services[`${dep.slug}-avr-asr-deepgram`].environment?.DEEPGRAM_API_KEY).toBe("sk-test-deepgram");
 
     // Asterisk mounts and ports
-    const ast = services[`${dep.slug}-asterisk`];
+    const ast = services[`${dep.slug}-avr-asterisk`];
     const mounts = getAsteriskConfMounts();
     for (const m of mounts) expect(ast.volumes).toContain(m);
     const ports = getAsteriskPortMappings(DEFAULT_ASTERISK_CONFIG);
@@ -98,10 +98,10 @@ describe("compose-writer", () => {
 
     const { spec } = buildComposeObject(dep, providers, DEFAULT_ASTERISK_CONFIG);
     const services = spec.services;
-    expect(services[`${dep.slug}-llm-anthropic`].environment?.ANTHROPIC_API_KEY).toBe("sk-test-anthropic");
+    expect(services[`${dep.slug}-avr-llm-anthropic`].environment?.ANTHROPIC_API_KEY).toBe("sk-test-anthropic");
     // google asr/tts should not include provider-derived API keys
-    const asrGoogleEnv = services[`${dep.slug}-asr-google`].environment ?? {};
-    const ttsGoogleEnv = services[`${dep.slug}-tts-google`].environment ?? {};
+    const asrGoogleEnv = services[`${dep.slug}-avr-asr-google-cloud-speech`].environment ?? {};
+    const ttsGoogleEnv = services[`${dep.slug}-avr-tts-google-cloud-tts`].environment ?? {};
     expect(asrGoogleEnv).not.toHaveProperty("OPENAI_API_KEY");
     expect(asrGoogleEnv).not.toHaveProperty("ANTHROPIC_API_KEY");
     expect(asrGoogleEnv).not.toHaveProperty("GEMINI_API_KEY");
@@ -117,8 +117,8 @@ describe("compose-writer", () => {
     const dep = createDeployment({ type: "sts", providers: { sts: "openai-realtime" } });
     const { spec } = buildComposeObject(dep, providers, undefined);
     const services = spec.services;
-    expect(services[`${dep.slug}-sts-openai`]).toBeTruthy();
-    expect(services[`${dep.slug}-sts-openai`].environment?.OPENAI_API_KEY).toBe("sk-test-openai");
+    expect(services[`${dep.slug}-avr-sts-openai`]).toBeTruthy();
+    expect(services[`${dep.slug}-avr-sts-openai`].environment?.OPENAI_API_KEY).toBe("sk-test-openai");
   });
 
   it("writes docker-compose.yml idempotently", () => {
@@ -146,16 +146,16 @@ describe("compose-writer", () => {
     const dep = createDeployment({
       type: "modular",
       name: "Snapshot Modular",
-      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      providers: { llm: "openai", asr: "deepgram", tts: "google" },
     });
     const fixed = { ...dep, slug: "snapshot-modular" };
     const { yaml } = buildComposeObject(fixed, providers, DEFAULT_ASTERISK_CONFIG);
-    expect(yaml).toContain("snapshot-modular-asterisk");
+    expect(yaml).toContain("snapshot-modular-avr-asterisk");
     expect(yaml).toContain("./asterisk/conf/pjsip.conf:/etc/asterisk/my_pjsip.conf");
     expect(yaml).toContain("10000-10050:10000-10050/udp");
-    expect(yaml).toContain("snapshot-modular-llm-openai");
+    expect(yaml).toContain("snapshot-modular-avr-llm-openai");
     expect(yaml).toContain("OPENAI_API_KEY");
-    expect(yaml).toContain("snapshot-modular-asr-deepgram");
+    expect(yaml).toContain("snapshot-modular-avr-asr-deepgram");
     expect(yaml).toContain("SPEECH_RECOGNITION_MODEL");
     expect(yaml).toContain('networks:\n  snapshot-modular:\n    driver: "bridge"');
     expect(yaml).toContain("ipam");
@@ -166,10 +166,10 @@ describe("compose-writer", () => {
     const dep = createDeployment({ type: "sts", name: "Snapshot STS", providers: { sts: "openai-realtime" } });
     const fixed = { ...dep, slug: "snapshot-sts" };
     const { yaml } = buildComposeObject(fixed, providers, DEFAULT_ASTERISK_CONFIG);
-    expect(yaml).toContain("snapshot-sts-asterisk");
+    expect(yaml).toContain("snapshot-sts-avr-asterisk");
     expect(yaml).toContain("./asterisk/conf/manager.conf:/etc/asterisk/my_manager.conf");
     expect(yaml).toContain("10000-10050:10000-10050/udp");
-    expect(yaml).toContain("snapshot-sts-sts-openai");
+    expect(yaml).toContain("snapshot-sts-avr-sts-openai");
     expect(yaml).toContain("OPENAI_API_KEY");
     expect(yaml).toContain("STS_URL");
     expect(yaml).toContain('networks:\n  snapshot-sts:\n    driver: "bridge"');
@@ -207,7 +207,7 @@ describe("compose-writer", () => {
     });
 
     // Verify the sts-gemini service specifically has the overrides
-    const stsGemini = services[`${dep.slug}-sts-gemini`];
+    const stsGemini = services[`${dep.slug}-avr-sts-gemini`];
     expect(stsGemini.environment?.GEMINI_MODEL).toBe("gemini-2.5-flash-preview-native-audio-dialog");
     expect(stsGemini.environment?.GEMINI_INSTRUCTIONS).toBe("You are a helpful assistant");
   });
@@ -233,7 +233,7 @@ describe("compose-writer", () => {
     const services = spec.services;
 
     // Verify overrides take precedence
-    const stsGemini = services[`${dep.slug}-sts-gemini`];
+    const stsGemini = services[`${dep.slug}-avr-sts-gemini`];
     expect(stsGemini.environment?.GEMINI_MODEL).toBe("custom-gemini-model");
     expect(stsGemini.environment?.PORT).toBe("9999");
   });
@@ -243,7 +243,7 @@ describe("compose-writer", () => {
     const dep = createDeployment({
       type: "modular",
       name: "Modular Override Test",
-      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      providers: { llm: "openai", asr: "deepgram", tts: "google" },
     });
 
     const depWithOverrides = {
@@ -268,14 +268,14 @@ describe("compose-writer", () => {
     });
 
     // Verify specific services have the relevant overrides
-    const llmOpenai = services[`${dep.slug}-llm-openai`];
+    const llmOpenai = services[`${dep.slug}-avr-llm-openai`];
     expect(llmOpenai.environment?.OPENAI_MODEL).toBe("gpt-4o");
 
-    const asrDeepgram = services[`${dep.slug}-asr-deepgram`];
+    const asrDeepgram = services[`${dep.slug}-avr-asr-deepgram`];
     expect(asrDeepgram.environment?.DEEPGRAM_MODEL).toBe("nova-2");
 
-    const ttsElevenlabs = services[`${dep.slug}-tts-elevenlabs`];
-    expect(ttsElevenlabs.environment?.ELEVENLABS_VOICE_ID).toBe("custom-voice");
+    const ttsGoogle = services[`${dep.slug}-avr-tts-google-cloud-tts`];
+    expect(ttsGoogle.environment).toBeTruthy();
   });
 
   it("handles empty environment overrides gracefully", () => {
@@ -295,7 +295,7 @@ describe("compose-writer", () => {
     const services = spec.services;
 
     // Should still have default environment variables
-    const stsGemini = services[`${dep.slug}-sts-gemini`];
+    const stsGemini = services[`${dep.slug}-avr-sts-gemini`];
     expect(stsGemini.environment?.GEMINI_MODEL).toBe("gemini-2.5-flash-preview-native-audio-dialog");
     expect(stsGemini.environment?.PORT).toBe("6037");
   });

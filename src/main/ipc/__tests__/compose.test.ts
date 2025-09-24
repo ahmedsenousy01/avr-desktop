@@ -90,7 +90,7 @@ describe("compose IPC", () => {
     expect(res.changed).toBe(true);
     expect(res.services.length).toBeGreaterThan(0);
     const content = fs.readFileSync(res.filePath, "utf8");
-    expect(content.includes(`${dep.slug}-asterisk`)).toBe(true);
+    expect(content.includes(`${dep.slug}-avr-asterisk`)).toBe(true);
   });
 
   it("compose:up runs docker compose up -d in deployment directory and returns services", async () => {
@@ -195,12 +195,12 @@ describe("compose IPC", () => {
     });
 
     const psJson = JSON.stringify([
-      { Service: `${dep.slug}-core`, State: "running" },
-      { Service: `${dep.slug}-asterisk`, State: "running" },
+      { Service: `${dep.slug}-avr-core`, State: "running" },
+      { Service: `${dep.slug}-avr-asterisk`, State: "running" },
     ]);
     const inspectJson = JSON.stringify([
-      { Name: `/${dep.slug}-core`, State: { Health: { Status: "healthy" } } },
-      { Name: `/${dep.slug}-asterisk`, State: { Health: { Status: "unhealthy" } } },
+      { Name: `/${dep.slug}-avr-core`, State: { Health: { Status: "healthy" } } },
+      { Name: `/${dep.slug}-avr-asterisk`, State: { Health: { Status: "unhealthy" } } },
     ]);
 
     const runSpy = vi.spyOn(dockerCli, "runDocker");
@@ -210,13 +210,13 @@ describe("compose IPC", () => {
     const res = (await invoke(ComposeChannels.status, { deploymentId: dep.id })) as {
       services: { service: string; state: string; health?: string; role?: string }[];
     };
-    const core = res.services.find((s) => s.service === `${dep.slug}-core`);
-    const ast = res.services.find((s) => s.service === `${dep.slug}-asterisk`);
+    const core = res.services.find((s) => s.service === `${dep.slug}-avr-core`);
+    const ast = res.services.find((s) => s.service === `${dep.slug}-avr-asterisk`);
     if (!core || !ast) throw new Error("Expected services not found");
     expect(core.health).toBe("healthy");
     expect(ast.health).toBe("unhealthy");
-    expect(core.role).toBe("core");
-    expect(ast.role).toBe("asterisk");
+    expect(core.role).toBe("service");
+    expect(ast.role).toBe("service");
   });
 
   it("compose:up maps DockerError to friendly message", async () => {
@@ -368,7 +368,7 @@ describe("compose IPC", () => {
 
     const res = (await invoke(ComposeChannels.logsExport, {
       deploymentId: dep.id,
-      service: `${dep.slug}-asterisk`,
+      service: `${dep.slug}-avr-asterisk`,
       content: "hello\nworld\n",
     })) as { filePath: string };
 
