@@ -13,9 +13,10 @@ export interface TemplatesGridProps {
   onCreate: (templateId: string) => void;
   className?: string;
   isCreateDisabled?: boolean;
+  disabledIds?: string[];
 }
 
-export function TemplatesGrid({ templates, onCreate, className, isCreateDisabled }: TemplatesGridProps) {
+export function TemplatesGrid({ templates, onCreate, className, isCreateDisabled, disabledIds }: TemplatesGridProps) {
   return (
     <div className={className}>
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -44,7 +45,7 @@ export function TemplatesGrid({ templates, onCreate, className, isCreateDisabled
                 type="button"
                 aria-label={`Create from ${t.displayName}`}
                 data-testid={`create-${t.id}`}
-                disabled={isCreateDisabled}
+                disabled={isCreateDisabled || (disabledIds?.includes(t.id) ?? false)}
                 className="inline-flex items-center rounded-md bg-blue-600 px-3 py-1.5 text-sm font-semibold text-white shadow-sm hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-50"
                 onClick={() => onCreate(t.id)}
               >

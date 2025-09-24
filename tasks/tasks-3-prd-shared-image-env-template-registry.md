@@ -4,6 +4,7 @@
 - `src/shared/registry/images.ts` - Single-source image registry with docker image, defaults, env schema, ports/volumes, wsPort.
 - `src/shared/registry/providers-to-images.ts` - Provider → image-key mappings with role-constrained types.
 - `src/shared/registry/templates.ts` - Templates built from available images; functional flags.
+- `src/shared/registry/__tests__/typing.test.ts` - Type-level tests for role-constrained image keys and template image references.
 - `src/main/services/compose-writer.ts` - Compose object/plan generation; refactor to consume registry.
 - `src/main/services/env-registry.ts` - Replace hardcoded schemas with schemas derived from image registry.
 - `src/main/services/deployment-env-store.ts` - Env seeding; derive defaults/STS URL from registry.
@@ -50,15 +51,15 @@
   - [x] 3.4 Ensure read/write of `environment.json` remains stable with temp-file rename.
   - [x] 3.5 Keep provider secrets out of `environment.json` (no secret materialization).
 
-- [ ] 4.0 Update template metadata and renderer to respect registry constraints
-  - [ ] 4.1 Refactor `template-registry.ts` to a thin UI metadata layer that references `TEMPLATES` for composition and functional flags; rename ElevenLabs to STS.
-  - [ ] 4.2 Update `env-editor.tsx` to load schemas from selected images; maintain compose plan for ordering and display names.
-  - [ ] 4.3 Handle non-functional templates in UI (badge/disabled state) based on template functional flag.
-  - [ ] 4.4 Keep provider presence indicators; do not display provider secrets.
+- [x] 4.0 Update template metadata and renderer to respect registry constraints
+  - [x] 4.1 Refactor `template-registry.ts` to a thin UI metadata layer that references `TEMPLATES` for composition and functional flags; rename ElevenLabs to STS.
+  - [x] 4.2 Update `env-editor.tsx` to load schemas from selected images; maintain compose plan for ordering and display names.
+  - [x] 4.3 Handle non-functional templates in UI (badge/disabled state) based on template functional flag.
+  - [x] 4.4 Keep provider presence indicators; do not display provider secrets.
 
-- [ ] 5.0 Comprehensive tests for registry typing, compose output, and UI schema rendering
-  - [ ] 5.1 Typing tests: invalid template→image assignments fail; removing an image breaks dependent templates at build time.
-  - [ ] 5.2 Compose tests: verify each template’s compose spec matches @examples/ for images, ports, volumes, and default env.
-  - [ ] 5.3 Env seeding tests: seeded defaults and dynamic URLs match expectations from images/specs.
-  - [ ] 5.4 UI tests: Env Editor renders fields per image `envSchema` and respects service order; provider presence displayed.
-  - [ ] 5.5 Snapshot/update existing tests in `__tests__` to align with registry-driven behavior.
+- [x] 5.0 Comprehensive tests for registry typing, compose output, and UI schema rendering
+  - [x] 5.1 Typing tests: invalid template→image assignments fail; removing an image breaks dependent templates at build time.
+  - [x] 5.2 Compose tests: verify each template’s compose spec matches @examples/ for images, ports, volumes, and default env.
+  - [x] 5.3 Env seeding tests: seeded defaults and dynamic URLs match expectations from images/specs.
+  - [x] 5.4 UI tests: Env Editor renders fields per image `envSchema` and respects service order; provider presence displayed.
+  - [x] 5.5 Snapshot/update existing tests in `__tests__` to align with registry-driven behavior.

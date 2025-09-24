@@ -57,14 +57,16 @@ export function EnvironmentPage() {
   }
 
   function addRow() {
-    // Add an empty placeholder row
-    let n = 1;
-    let key = "NEW_VAR";
-    while (envMap[key] || Object.prototype.hasOwnProperty.call(envMap, key)) {
-      n += 1;
-      key = `NEW_VAR_${n}`;
-    }
-    setEnvMap((prev) => ({ ...prev, [key]: "" }));
+    // Add an empty placeholder row with a unique key
+    setEnvMap((prev) => {
+      let n = 1;
+      let key = "NEW_VAR";
+      while (Object.prototype.hasOwnProperty.call(prev, key)) {
+        n += 1;
+        key = `NEW_VAR_${n}`;
+      }
+      return { ...prev, [key]: "" };
+    });
   }
 
   function removeKey(key: string) {
