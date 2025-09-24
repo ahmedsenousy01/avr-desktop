@@ -1,12 +1,8 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  getTemplateMeta,
-  listTemplates,
-  listTemplatesByStackType,
-  TEMPLATE_IDS,
-  templateToDeployment,
-} from "../template-registry";
+import { TEMPLATE_IDS } from "@shared/registry/templates";
+
+import { getTemplateMeta, listTemplates, listTemplatesByStackType, templateToDeployment } from "../template-registry";
 
 describe("template registry", () => {
   it("exposes all template ids and matching metadata", () => {
@@ -17,11 +13,10 @@ describe("template registry", () => {
       expect(ids.has(id)).toBe(true);
       const meta = getTemplateMeta(id);
       expect(meta.id).toBe(id);
-      expect(Array.isArray(meta.tags)).toBe(true);
-      expect(Array.isArray(meta.badges)).toBe(true);
-      expect(typeof meta.displayName).toBe("string");
-      expect(typeof meta.summary).toBe("string");
-      expect(typeof meta.exampleCompose).toBe("string");
+      // Shared registry exposes role-keyed images instead of arrays
+      expect(typeof meta.images).toBe("object");
+      expect(typeof meta.stackType).toBe("string");
+      expect(typeof meta.functional).toBe("boolean");
     }
   });
 
@@ -38,11 +33,9 @@ describe("template registry", () => {
       expect(s.stackType).toBe("sts");
     }
 
+    // No integration templates in shared registry at the moment
     const integrations = listTemplatesByStackType("integration");
-    expect(integrations.length).toBeGreaterThan(0);
-    for (const i of integrations) {
-      expect(i.stackType).toBe("integration");
-    }
+    expect(integrations.length).toBe(0);
   });
 });
 

@@ -94,7 +94,10 @@ export function registerComposeIpcHandlers(): void {
       if (needsWrite) {
         // Write using deployment's asterisk config (falls back to defaults inside service)
         try {
-          await renderAsteriskConfig(dep.asterisk ?? DEFAULT_ASTERISK_CONFIG, undefined, astConfDir, false);
+          await renderAsteriskConfig(dep.asterisk ?? DEFAULT_ASTERISK_CONFIG, undefined, astConfDir, false, {
+            CORE_HOST: `${dep.slug}-avr-core`,
+            CORE_PORT: "5001",
+          });
         } catch {
           // Best-effort: continue even if write fails; docker will surface errors
         }

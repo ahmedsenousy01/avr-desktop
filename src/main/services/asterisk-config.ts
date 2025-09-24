@@ -23,7 +23,15 @@ export const TOKEN_OPEN = "{{" as const;
 /** Right delimiter for tokens in templates */
 export const TOKEN_CLOSE = "}}" as const;
 
-export type AsteriskTokenName = "EXTERNAL_IP" | "SIP_PORT" | "RTP_START" | "RTP_END" | "CODECS" | "DTMF_MODE";
+export type AsteriskTokenName =
+  | "EXTERNAL_IP"
+  | "SIP_PORT"
+  | "RTP_START"
+  | "RTP_END"
+  | "CODECS"
+  | "DTMF_MODE"
+  | "CORE_HOST"
+  | "CORE_PORT";
 
 /** All supported token names (for validation and discovery) */
 export const ASTERISK_TOKENS: readonly AsteriskTokenName[] = [
@@ -33,6 +41,8 @@ export const ASTERISK_TOKENS: readonly AsteriskTokenName[] = [
   "RTP_END",
   "CODECS",
   "DTMF_MODE",
+  "CORE_HOST",
+  "CORE_PORT",
 ];
 
 /** Build the delimited token string, e.g., "{{EXTERNAL_IP}}" */
@@ -45,8 +55,11 @@ function formatCodecs(codecs: AsteriskConfig["codecs"]): string {
 }
 
 /** Build a map from delimited tokens to concrete string values for a given config. */
-export function buildTokenMap(config: AsteriskConfig): Record<string, string> {
-  return {
+export function buildTokenMap(
+  config: AsteriskConfig,
+  extra?: Partial<Record<AsteriskTokenName, string>>
+): Record<string, string> {
+  const base: Record<string, string> = {
     [makeToken("EXTERNAL_IP")]: config.externalIp,
     [makeToken("SIP_PORT")]: String(config.sipPort),
     [makeToken("RTP_START")]: String(config.rtpStart),
@@ -54,6 +67,9 @@ export function buildTokenMap(config: AsteriskConfig): Record<string, string> {
     [makeToken("CODECS")]: formatCodecs(config.codecs),
     [makeToken("DTMF_MODE")]: config.dtmfMode,
   };
+  if (extra?.CORE_HOST) base[makeToken("CORE_HOST")] = extra.CORE_HOST;
+  if (extra?.CORE_PORT) base[makeToken("CORE_PORT")] = extra.CORE_PORT;
+  return base;
 }
 
 function escapeRegExp(literal: string): string {
@@ -122,7 +138,8 @@ export async function renderAsteriskConfig(
   config: AsteriskConfig,
   sourceDir?: string,
   targetDir?: string,
-  preview = true
+  preview = true,
+  extraTokens?: Partial<Record<AsteriskTokenName, string>>
 ): Promise<{ files: Record<string, string>; written: string[] }> {
   const validation = validateAsteriskConfigSchema(config);
   if (!validation.valid) {
@@ -130,7 +147,7 @@ export async function renderAsteriskConfig(
   }
 
   const effectiveSourceDir = sourceDir ?? getDefaultTemplatesDir(__dirname);
-  const tokenMap = buildTokenMap(config);
+  const tokenMap = buildTokenMap(config, extraTokens);
 
   const files: Record<string, string> = {};
   for (const filename of TEMPLATE_FILENAMES) {

@@ -1,32 +1,31 @@
 import fs from "node:fs";
 import path from "node:path";
+import type { ImageKey } from "../../shared/registry/images";
 import type { AsteriskConfig } from "../../shared/types/asterisk";
 import type { Deployment } from "../../shared/types/deployments";
 import type { Providers } from "../../shared/types/providers";
-import type { ServiceFragmentId } from "./template-registry";
 
+import { IMAGES } from "../../shared/registry/images";
+import { PROVIDER_TO_IMAGE } from "../../shared/registry/providers-to-images";
 import { DEFAULT_ASTERISK_CONFIG } from "../../shared/types/asterisk";
 import { getProviderApiKey } from "../../shared/types/providers";
 import { ensureDeploymentEnvSeeded, resolveServiceTemplatesInValue } from "./deployment-env-store";
 import { findDeploymentDirById } from "./deployments-store";
-import { getFragmentsForModularSelection, getFragmentsForStsSelection } from "./template-registry";
 
-// Known images from example compose files
-const FRAGMENT_IMAGE: Partial<Record<ServiceFragmentId, string>> = {
-  core: "agentvoiceresponse/avr-core",
-  asterisk: "agentvoiceresponse/avr-asterisk",
-  ami: "agentvoiceresponse/avr-ami",
-  "asr-deepgram": "agentvoiceresponse/avr-asr-deepgram",
-  "asr-google": "agentvoiceresponse/avr-asr-google-cloud-speech",
-  "asr-vosk": "agentvoiceresponse/avr-asr-vosk",
-  "tts-google": "agentvoiceresponse/avr-tts-google-cloud-tts",
-  "llm-openai": "agentvoiceresponse/avr-llm-openai",
-  "llm-anthropic": "agentvoiceresponse/avr-llm-anthropic",
-  "sts-openai-realtime": "agentvoiceresponse/avr-sts-openai",
-  "sts-ultravox": "agentvoiceresponse/avr-sts-ultravox",
-  "sts-gemini": "agentvoiceresponse/avr-sts-gemini",
-  // Note: tts-elevenlabs and llm-gemini images are not present in examples; omit to avoid guessing
+// Fragment helpers removed; selection is image-key based
+
+type NamedService = {
+  imageKey: ImageKey;
+  serviceName: string;
+  aliases: string[];
 };
+
+function nameServicesFromKeys(slug: string, imageKeys: ImageKey[]): NamedService[] {
+  return imageKeys.map((imageKey) => {
+    const serviceName = `${slug}-${String(imageKey)}`;
+    return { imageKey, serviceName, aliases: [serviceName] };
+  });
+}
 
 // Narrow types for the generated compose spec for clarity and DRY usage.
 export interface ComposeService {
@@ -108,50 +107,43 @@ export function buildComposePlan(
 
 // Centralized defaults per service fragment.
 // Only include stable, example-backed defaults here. Dynamic items are applied below.
-type ServiceDefaults = {
-  environment?: Record<string, string>;
-  ports?: (string | number)[];
-  volumes?: string[];
-};
+// Defaults are derived from IMAGES (defaultEnv/defaultPorts/defaultVolumes)
 
-const DEFAULTS_BY_FRAGMENT: Partial<Record<ServiceFragmentId, ServiceDefaults>> = {
-  core: {
-    ports: ["5001:5001"],
-  },
-  // LLM
-  "llm-openai": {
-    volumes: ["./tools:/usr/src/app/tools"],
-  },
-  // ASR
-  "asr-google": {
-    volumes: ["./google.json:/usr/src/app/google.json"],
-  },
-  "asr-vosk": {
-    volumes: ["./model:/usr/src/app/model"],
-  },
-  // TTS
-  "tts-google": {
-    volumes: ["./google.json:/usr/src/app/google.json"],
-  },
-  // STS fragments currently have no static ports/vols beyond env JSON
-};
+function getStsWsPortFromKeys(selectedKeys: ImageKey[]): number | null {
+  const stsKey = selectedKeys.find((k) => IMAGES[k].role === "sts");
+  if (!stsKey) return null;
+  return IMAGES[stsKey].wsPort ?? null;
+}
 
-function getStsWsPort(fragmentId: ServiceFragmentId): number | null {
-  switch (fragmentId) {
-    case "sts-openai-realtime":
-      return 6030;
-    case "sts-ultravox":
-      return 6031;
-    case "sts-gemini":
-      return 6037;
-    default:
-      return null;
-  }
+function resolveAsrImageKey(asr: keyof NonNullable<typeof PROVIDER_TO_IMAGE.asr>): ImageKey | null {
+  return (PROVIDER_TO_IMAGE.asr?.[asr] as ImageKey | undefined) ?? null;
+}
+
+function resolveTtsImageKey(tts: keyof NonNullable<typeof PROVIDER_TO_IMAGE.tts>): ImageKey | null {
+  if (tts === "elevenlabs") return "avr-tts-deepgram"; // examples use deepgram tts
+  return (PROVIDER_TO_IMAGE.tts?.[tts] as ImageKey | undefined) ?? null;
+}
+
+function resolveLlmImageKey(llm: keyof NonNullable<typeof PROVIDER_TO_IMAGE.llm> | "gemini"): ImageKey | null {
+  if (llm === "gemini") return "avr-llm-openrouter"; // examples use openrouter for gemini models
+  return (
+    (PROVIDER_TO_IMAGE.llm?.[llm as keyof NonNullable<typeof PROVIDER_TO_IMAGE.llm>] as ImageKey | undefined) ?? null
+  );
+}
+
+function resolveStsImageKey(sts: "openai-realtime" | "ultravox" | "gemini"): ImageKey | null {
+  const map: Record<string, keyof NonNullable<typeof PROVIDER_TO_IMAGE.sts>> = {
+    "openai-realtime": "openai",
+    ultravox: "ultravox",
+    gemini: "gemini",
+  };
+  const key = map[sts];
+  return key ? ((PROVIDER_TO_IMAGE.sts?.[key] as ImageKey | undefined) ?? null) : null;
 }
 
 function enforceCoreEnvShape(
   deploymentType: Deployment["type"],
-  namedFragments: NamedFragment[],
+  namedServices: NamedService[],
   env: Record<string, string>
 ): void {
   if (deploymentType === "sts") {
@@ -160,9 +152,9 @@ function enforceCoreEnvShape(
     delete env["TTS_URL"];
     // Avoid startup greeting path that uses LLM->TTS in some images
     delete env["SYSTEM_MESSAGE"];
-    const sts = namedFragments.find((f) => f.fragmentId.startsWith("sts-"));
+    const sts = namedServices.find((f) => IMAGES[f.imageKey].role === "sts");
     if (sts) {
-      const wsPort = getStsWsPort(sts.fragmentId);
+      const wsPort = getStsWsPortFromKeys(namedServices.map((n) => n.imageKey));
       if (wsPort) env["STS_URL"] = `ws://${sts.serviceName}:${String(wsPort)}`;
     }
   } else {
@@ -188,30 +180,33 @@ export function buildComposeObject(
   providers: Providers,
   asteriskConfig?: AsteriskConfig
 ): ComposeBuildResult {
-  let fragments: ServiceFragmentId[];
+  // Build selected image keys based on deployment type
+  const baseInfra: ImageKey[] = ["avr-core", "avr-asterisk", "avr-ami"];
+  let selected: ImageKey[] = [];
   if (deployment.type === "modular") {
     const { llm, asr, tts } = deployment.providers;
     if (!llm || !asr || !tts) throw new Error("Missing providers for modular deployment");
-    fragments = getFragmentsForModularSelection({ llm, asr, tts });
+    const asrKey = resolveAsrImageKey(asr);
+    const ttsKey = resolveTtsImageKey(tts);
+    const llmKey = resolveLlmImageKey(llm);
+    selected = [asrKey, ttsKey, llmKey].filter((k): k is ImageKey => Boolean(k));
   } else {
     const { sts } = deployment.providers;
     if (!sts) throw new Error("Missing STS provider for sts deployment");
-    fragments = getFragmentsForStsSelection({ sts });
+    const stsKey = resolveStsImageKey(sts);
+    selected = [stsKey].filter((k): k is ImageKey => Boolean(k));
   }
 
-  const named = nameFragments(deployment.slug, fragments);
+  const orderedKeys: ImageKey[] = [...baseInfra, ...selected];
+  const named = nameServicesFromKeys(deployment.slug, orderedKeys);
   const services: ComposeSpec["services"] = {};
   const networkName = deployment.slug;
-  const _asteriskServiceName = named.find((f) => f.fragmentId === "asterisk")?.serviceName;
+  const _asteriskServiceName = named.find((f) => f.imageKey === "avr-asterisk")?.serviceName;
 
   // Load per-deployment environment once and prepare a resolver for service templates
   const deploymentEnv = ensureDeploymentEnvSeeded(deployment.id);
   const exampleServiceNameToActual: Record<string, string> = Object.fromEntries(
-    named.map((n) => {
-      const suffix = getServiceSuffixForFragment(n.fragmentId);
-      const exampleName = `avr-${suffix}`;
-      return [exampleName, n.serviceName] as const;
-    })
+    named.map((n) => [String(n.imageKey), n.serviceName] as const)
   );
   const resolveTemplateName = (name: string) => exampleServiceNameToActual[name] ?? name;
 
@@ -225,61 +220,56 @@ export function buildComposeObject(
 
   // Replace bare example service tokens (e.g., AMI_HOST=avr-asterisk) with slugged names
   const replaceExampleBareTokensInValue = (value: string): string => {
-    return value.replace(/\b(avr-[a-z0-9-]+)\b/gi, (_m, host: string) => {
+    return value.replace(/\b(avr-[a-z0-9-]+)\b/gi, (match: string, host: string, offset: number) => {
+      const prefixStart = Math.max(0, offset - (networkName.length + 1));
+      const preceding = value.slice(prefixStart, offset);
+      // Avoid double-prefixing when token already appears inside `${slug}-avr-*`
+      if (preceding === `${networkName}-`) return match;
       return exampleServiceNameToActual[host] ?? host;
     });
   };
 
   for (const nf of named) {
-    const env = getEnvForFragment(providers, nf.fragmentId);
-    const maybeImage = FRAGMENT_IMAGE[nf.fragmentId];
+    const imageKey = nf.imageKey;
+    const env = getEnvForImageKey(providers, imageKey);
     const svc: ComposeService = createBaseService(nf.serviceName, nf.aliases, networkName);
-    if (maybeImage) svc.image = maybeImage;
+    svc.image = IMAGES[imageKey].dockerImage;
 
-    if (nf.fragmentId === "asterisk") {
+    if (imageKey === "avr-asterisk") {
       const cfg = asteriskConfig ?? DEFAULT_ASTERISK_CONFIG;
       svc.ports = getAsteriskPortMappings(cfg);
       svc.volumes = getAsteriskConfMounts();
       // Gemini STS example serves a static phone UI from Asterisk HTTP server
-      if (fragments.includes("sts-gemini")) {
+      if (selected.includes("avr-sts-gemini")) {
         svc.volumes = [...(svc.volumes ?? []), "./phone:/var/lib/asterisk/static-http/phone"];
       }
     }
 
-    // Inject centralized defaults
-    const staticDefaults = DEFAULTS_BY_FRAGMENT[nf.fragmentId];
-    if (staticDefaults?.ports) {
-      svc.ports = [...(svc.ports ?? []), ...staticDefaults.ports];
-    }
-    if (staticDefaults?.volumes) {
-      svc.volumes = [...(svc.volumes ?? []), ...staticDefaults.volumes];
-    }
-    if (staticDefaults?.environment) {
-      for (const [k, v] of Object.entries(staticDefaults.environment)) env[k] = v;
+    // Apply image defaults from registry (except asterisk which has bespoke mounts/ports logic)
+    {
+      const spec = IMAGES[imageKey];
+      if (spec.defaultPorts && imageKey !== "avr-asterisk") {
+        svc.ports = [...(svc.ports ?? []), ...spec.defaultPorts];
+      }
+      if (spec.defaultVolumes && imageKey !== "avr-asterisk") {
+        svc.volumes = [...(svc.volumes ?? []), ...spec.defaultVolumes];
+      }
+      if (spec.defaultEnv) {
+        for (const [k, v] of Object.entries(spec.defaultEnv)) env[k] = v;
+      }
     }
 
     // Mode-aware adjustments not expressible in static defaults
     // STS examples expose AMI port on host (6006:6006)
-    if (nf.fragmentId === "ami" && deployment.type === "sts") {
+    if (imageKey === "avr-ami" && deployment.type === "sts") {
       svc.ports = ["6006:6006"];
     }
 
-    // STS providers (examples): add ports and defaults
-    if (nf.fragmentId === "sts-openai-realtime") {
-      // Defaults seeded via EnvRegistry/DeploymentEnv
-    }
-    if (nf.fragmentId === "sts-gemini") {
-      // Defaults seeded via EnvRegistry/DeploymentEnv
-    }
-    if (nf.fragmentId === "sts-ultravox") {
-      // Defaults seeded via EnvRegistry/DeploymentEnv
-    }
-
-    // LLM/ASR/TTS per-fragment static mounts handled by DEFAULTS_BY_FRAGMENT
+    // STS providers (examples): defaults are seeded via EnvRegistry/DeploymentEnv
 
     // Assign env at the end so additions above are captured
     // 1) Merge per-service DeploymentEnv values (registry uses example service names like "avr-*")
-    const registryServiceName = `avr-${getServiceSuffixForFragment(nf.fragmentId)}`;
+    const registryServiceName = String(imageKey);
     const userVars = deploymentEnv.services[registryServiceName] ?? {};
     for (const [k, raw] of Object.entries(userVars)) {
       const s = String(raw);
@@ -297,7 +287,11 @@ export function buildComposeObject(
     }
 
     // Now enforce core env shape for STS vs modular after merges, so unwanted keys cannot reappear
-    if (nf.fragmentId === "core") {
+    if (imageKey === "avr-core") {
+      // compute STS_URL from selected STS image key
+      const wsPort = getStsWsPortFromKeys(selected);
+      if (wsPort)
+        env["STS_URL"] = `ws://${named.find((n) => IMAGES[n.imageKey].role === "sts")?.serviceName}:${String(wsPort)}`;
       enforceCoreEnvShape(deployment.type, named, env);
       const filtered = filterCoreEnvForDeploymentType(deployment.type, env);
       // Ensure deployment-level overrides remain visible on core even in STS mode
@@ -387,83 +381,13 @@ export function writeComposeFile(
  */
 
 /** Returns the deterministic suffix for a given fragment id. */
-export function getServiceSuffixForFragment(fragmentId: ServiceFragmentId): string {
-  switch (fragmentId) {
-    case "core":
-      return "core";
-    case "asterisk":
-      return "asterisk";
-    case "ami":
-      return "ami";
-    case "asr-deepgram":
-      return "asr-deepgram";
-    case "asr-google":
-      return "asr-google";
-    case "asr-vosk":
-      return "asr-vosk";
-    case "tts-elevenlabs":
-      return "tts-elevenlabs";
-    case "tts-google":
-      return "tts-google";
-    case "llm-openai":
-      return "llm-openai";
-    case "llm-anthropic":
-      return "llm-anthropic";
-    case "llm-gemini":
-      return "llm-gemini";
-    case "sts-openai-realtime":
-      return "sts-openai";
-    case "sts-ultravox":
-      return "sts-ultravox";
-    case "sts-gemini":
-      return "sts-gemini";
-    default: {
-      const neverCheck: never = fragmentId;
-      throw new Error(`Unhandled fragment: ${String(neverCheck)}`);
-    }
-  }
-}
+// Fragment suffix helper removed with imageKey-based naming
 
 /** Builds the canonical service name `${slug}-${suffix}` for a fragment. */
-export function makeServiceName(slug: string, fragmentId: ServiceFragmentId): string {
-  const suffix = getServiceSuffixForFragment(fragmentId);
-  return `${slug}-${suffix}`;
-}
+// makeServiceName no longer used in imageKey-based flow
 
 /** Returns a generic role alias used for DNS/network aliasing within the stack. */
-export function getRoleAlias(fragmentId: ServiceFragmentId): string {
-  if (fragmentId === "core") return "core";
-  if (fragmentId === "asterisk") return "asterisk";
-  if (fragmentId === "ami") return "ami";
-  if (fragmentId.startsWith("asr-")) return "asr";
-  if (fragmentId.startsWith("tts-")) return "tts";
-  if (fragmentId.startsWith("llm-")) return "llm";
-  if (fragmentId.startsWith("sts-")) return "sts";
-  return "service";
-}
-
-export interface NamedFragment {
-  fragmentId: ServiceFragmentId;
-  serviceName: string;
-  /**
-   * Deterministic alias list:
-   * - First: generic role alias (e.g., "llm", "asr", "tts", "sts", "asterisk", "ami", "core").
-   * - Second: serviceName (for explicit aliasing when using custom network names).
-   */
-  aliases: string[];
-}
-
-/**
- * Given an ordered list of fragments, returns a stable list of named fragments
- * with canonical service names and aliases.
- */
-export function nameFragments(slug: string, fragments: ServiceFragmentId[]): NamedFragment[] {
-  return fragments.map((fragmentId) => {
-    const serviceName = makeServiceName(slug, fragmentId);
-    const roleAlias = getRoleAlias(fragmentId);
-    return { fragmentId, serviceName, aliases: [roleAlias, serviceName] };
-  });
-}
+// Fragment-based naming removed in favor of imageKey-based helpers above
 
 // ----- Sub-task 1.3: Provider env injection -----
 
@@ -474,39 +398,39 @@ export type EnvMap = Record<string, string>;
  * Keys not backed by providers JSON (e.g., GOOGLE_APPLICATION_CREDENTIALS, ULTRAVOX_* agent ids)
  * are intentionally omitted here and handled in later tasks (mounts/validation).
  */
-export function getEnvForFragment(providers: Providers, fragmentId: ServiceFragmentId): EnvMap {
-  switch (fragmentId) {
-    case "llm-openai":
-    case "sts-openai-realtime":
+export function getEnvForImageKey(providers: Providers, imageKey: ImageKey): EnvMap {
+  switch (imageKey) {
+    case "avr-llm-openai":
+    case "avr-sts-openai":
       return withIfSet("OPENAI_API_KEY", getProviderApiKey(providers, "openai"));
 
-    case "llm-anthropic":
+    case "avr-llm-anthropic":
       return withIfSet("ANTHROPIC_API_KEY", getProviderApiKey(providers, "anthropic"));
 
-    case "llm-gemini":
+    case "avr-llm-openrouter":
       return withIfSet("GEMINI_API_KEY", getProviderApiKey(providers, "gemini"));
-    case "sts-gemini":
+    case "avr-sts-gemini":
       return withIfSet("GEMINI_API_KEY", getProviderApiKey(providers, "gemini"));
 
-    case "asr-deepgram":
+    case "avr-asr-deepgram":
       return withIfSet("DEEPGRAM_API_KEY", getProviderApiKey(providers, "deepgram"));
 
-    case "tts-elevenlabs":
+    case "avr-tts-deepgram":
       return withIfSet("ELEVENLABS_API_KEY", getProviderApiKey(providers, "elevenlabs"));
 
     // Fragments that require non-API-key material or are not part of providers JSON in MVP
-    case "asr-google":
-    case "tts-google":
-    case "sts-ultravox":
-    case "core":
-    case "asterisk":
-    case "ami":
-    case "asr-vosk":
+    case "avr-asr-google-cloud-speech":
+    case "avr-tts-google-cloud-tts":
+    case "avr-sts-ultravox":
+    case "avr-core":
+    case "avr-asterisk":
+    case "avr-ami":
+    case "avr-asr-vosk":
       return {};
 
     default: {
-      const neverCheck: never = fragmentId;
-      throw new Error(`Unhandled fragment for env injection: ${String(neverCheck)}`);
+      const neverCheck: never = imageKey as never;
+      throw new Error(`Unhandled imageKey for env injection: ${String(neverCheck)}`);
     }
   }
 }

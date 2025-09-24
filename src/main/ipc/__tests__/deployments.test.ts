@@ -60,7 +60,7 @@ describe("deployments IPC", () => {
   it("createFromSelection accepts modular selection and returns id/name", async () => {
     const res = await invoke(DeploymentsChannels.createFromSelection, {
       type: "modular",
-      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      providers: { llm: "openai", asr: "deepgram", tts: "google" },
     });
     expect(res.id).toBeTruthy();
     expect(res.name).toBeTruthy();
@@ -80,7 +80,7 @@ describe("deployments IPC", () => {
   it("duplicate and delete work end-to-end", async () => {
     const created = await invoke(DeploymentsChannels.createFromSelection, {
       type: "modular",
-      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      providers: { llm: "openai", asr: "deepgram", tts: "google" },
       name: "Orig",
     });
     const dup = await invoke(DeploymentsChannels.duplicate, { id: created.id, name: "Copy" });
@@ -93,7 +93,7 @@ describe("deployments IPC", () => {
     // Create a modular deployment first
     const created = await invoke(DeploymentsChannels.createFromSelection, {
       type: "modular",
-      providers: { llm: "openai", asr: "deepgram", tts: "elevenlabs" },
+      providers: { llm: "openai", asr: "deepgram", tts: "google" },
       name: "AstTest",
     });
     // Update with asterisk

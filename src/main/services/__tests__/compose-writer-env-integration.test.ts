@@ -67,14 +67,14 @@ describe("compose-writer env integration", () => {
     const { spec } = buildComposeObject(dep, providers, DEFAULT_ASTERISK_CONFIG);
 
     // Core env should include resolved ASR_URL and the custom flag
-    const coreName = `${dep.slug}-core`;
+    const coreName = `${dep.slug}-avr-core`;
     expect(spec.services[coreName]).toBeTruthy();
     const coreEnv = spec.services[coreName].environment ?? {};
     expect(coreEnv.CUSTOM_FLAG).toBe("enabled");
-    expect(coreEnv.ASR_URL).toBe(`http://${dep.slug}-asr-deepgram:6010/speech-to-text-stream`);
+    expect(coreEnv.ASR_URL).toBe(`http://${dep.slug}-avr-asr-deepgram:6010/speech-to-text-stream`);
 
     // LLM service should include provider key (from providers) and the editor-specified model
-    const llmName = `${dep.slug}-llm-openai`;
+    const llmName = `${dep.slug}-avr-llm-openai`;
     const llmEnv = spec.services[llmName].environment ?? {};
     expect(llmEnv.OPENAI_API_KEY).toBe("sk-openai");
     expect(llmEnv.OPENAI_MODEL).toBe("gpt-4o");
@@ -82,7 +82,7 @@ describe("compose-writer env integration", () => {
     // Write file and ensure resolved name appears in YAML
     const out = writeComposeFile(dep, providers, DEFAULT_ASTERISK_CONFIG);
     const yaml = fs.readFileSync(out.filePath, "utf8");
-    expect(yaml).toContain(`${dep.slug}-asr-deepgram`);
+    expect(yaml).toContain(`${dep.slug}-avr-asr-deepgram`);
     expect(yaml).toContain("ASR_URL");
   });
 });
