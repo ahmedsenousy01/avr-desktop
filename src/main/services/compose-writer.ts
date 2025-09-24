@@ -300,6 +300,12 @@ export function buildComposeObject(
     if (nf.fragmentId === "core") {
       enforceCoreEnvShape(deployment.type, named, env);
       const filtered = filterCoreEnvForDeploymentType(deployment.type, env);
+      // Ensure deployment-level overrides remain visible on core even in STS mode
+      if (deployment.environmentOverrides) {
+        for (const [k, v] of Object.entries(deployment.environmentOverrides)) {
+          filtered[k] = v;
+        }
+      }
       if (Object.keys(filtered).length > 0) svc.environment = filtered;
     } else {
       if (Object.keys(env).length > 0) svc.environment = env;

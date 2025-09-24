@@ -75,6 +75,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
 
     const res = (await invoke(ComposeChannels.generate, { deploymentId: dep.id })) as {
@@ -98,6 +102,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
 
     const runSpy = vi.spyOn(dockerCli, "runDocker").mockResolvedValue({ stdout: "done", stderr: "", exitCode: 0 });
@@ -123,6 +131,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
     const runSpy = vi.spyOn(dockerCli, "runDocker").mockResolvedValue({ stdout: "down", stderr: "", exitCode: 0 });
     const res = (await invoke(ComposeChannels.down, { deploymentId: dep.id })) as {
@@ -152,6 +164,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
     const res = (await invoke(ComposeChannels.status, { deploymentId: dep.id })) as {
       services: { service: string; state: string }[];
@@ -172,6 +188,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
 
     const psJson = JSON.stringify([
@@ -207,6 +227,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
     vi.spyOn(dockerCli, "runDocker").mockRejectedValueOnce(
       new dockerCli.DockerError("failed", 1, "error during connect: cannot connect to the Docker daemon")
@@ -258,6 +282,10 @@ describe("compose IPC", () => {
       gemini: { apiKey: "" },
       deepgram: { apiKey: "sk" },
       elevenlabs: { apiKey: "sk" },
+      google: { credentialsFilePath: "" },
+      vosk: { modelPath: "" },
+      openrouter: { apiKey: "" },
+      ultravox: { apiKey: "" },
     });
 
     // Always return empty compose ps output

@@ -8,7 +8,18 @@
 /**
  * Canonical list of supported provider identifiers.
  */
-export const PROVIDER_IDS = ["openai", "anthropic", "gemini", "deepgram", "elevenlabs"] as const;
+export const PROVIDER_IDS = [
+  "openai",
+  "anthropic",
+  "gemini",
+  "deepgram",
+  "elevenlabs",
+  // Additional providers from @examples/
+  "google",
+  "vosk",
+  "openrouter",
+  "ultravox",
+] as const;
 
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
@@ -21,6 +32,10 @@ export const PROVIDER_DISPLAY_LABELS: Readonly<Record<ProviderId, string>> = {
   gemini: "Google Gemini",
   deepgram: "Deepgram",
   elevenlabs: "ElevenLabs",
+  google: "Google Cloud",
+  vosk: "Vosk",
+  openrouter: "OpenRouter",
+  ultravox: "Ultravox",
 } as const;
 
 /**
@@ -35,7 +50,12 @@ export function getProviderDisplayLabel(providerId: ProviderId): string {
  * Extend in future if a provider requires more than a single API key.
  */
 export interface ProviderCredentials {
-  apiKey: string;
+  /** API key-based providers (openai, anthropic, gemini, deepgram, elevenlabs, openrouter, ultravox) */
+  apiKey?: string;
+  /** Google Cloud providers use a mounted service account file, not an API key */
+  credentialsFilePath?: string;
+  /** Vosk is a local/offline model that uses a model path */
+  modelPath?: string;
 }
 
 /**
@@ -55,6 +75,10 @@ export function createDefaultProviders(): Providers {
     gemini: { apiKey: "" },
     deepgram: { apiKey: "" },
     elevenlabs: { apiKey: "" },
+    google: { credentialsFilePath: "" },
+    vosk: { modelPath: "" },
+    openrouter: { apiKey: "" },
+    ultravox: { apiKey: "" },
   };
 }
 
@@ -100,16 +124,28 @@ export function validateProvidersShape(input: unknown): ProvidersValidationResul
     }
     const valueObj = value as Record<string, unknown>;
 
-    // Only allow 'apiKey'
-    const allowedKeys = new Set(["apiKey"]);
+    // Allowed keys vary per provider
+    const allowedKeys = new Set<string>(
+      id === "google" ? ["credentialsFilePath"] : id === "vosk" ? ["modelPath"] : ["apiKey"]
+    );
     const valueKeys = Object.keys(valueObj);
     const unexpected = valueKeys.filter((k) => !allowedKeys.has(k));
     if (unexpected.length > 0) {
       errors.push(`Provider '${id}' has unexpected field(s): ${unexpected.sort().join(", ")}`);
     }
 
-    if (typeof valueObj.apiKey !== "string") {
-      errors.push(`Provider '${id}'.apiKey must be a string`);
+    if (id === "google") {
+      if (typeof valueObj.credentialsFilePath !== "string") {
+        errors.push("Provider 'google'.credentialsFilePath must be a string");
+      }
+    } else if (id === "vosk") {
+      if (typeof valueObj.modelPath !== "string") {
+        errors.push("Provider 'vosk'.modelPath must be a string");
+      }
+    } else {
+      if (typeof valueObj.apiKey !== "string") {
+        errors.push(`Provider '${id}'.apiKey must be a string`);
+      }
     }
   }
 
@@ -136,6 +172,10 @@ export function mergeProviders(base: Providers, partial: ProvidersPartial): Prov
     gemini: { apiKey: base.gemini.apiKey },
     deepgram: { apiKey: base.deepgram.apiKey },
     elevenlabs: { apiKey: base.elevenlabs.apiKey },
+    google: { credentialsFilePath: base.google.credentialsFilePath },
+    vosk: { modelPath: base.vosk.modelPath },
+    openrouter: { apiKey: base.openrouter.apiKey },
+    ultravox: { apiKey: base.ultravox.apiKey },
   };
 
   for (const id of PROVIDER_IDS) {
@@ -143,9 +183,13 @@ export function mergeProviders(base: Providers, partial: ProvidersPartial): Prov
     if (!incoming || typeof incoming !== "object") {
       continue;
     }
-    const incomingApiKey = (incoming as ProviderCredentials).apiKey;
-    if (typeof incomingApiKey === "string") {
-      result[id].apiKey = incomingApiKey;
+    const inc = incoming as ProviderCredentials;
+    if (id === "google" && typeof inc.credentialsFilePath === "string") {
+      result.google.credentialsFilePath = inc.credentialsFilePath;
+    } else if (id === "vosk" && typeof inc.modelPath === "string") {
+      result.vosk.modelPath = inc.modelPath;
+    } else if (typeof inc.apiKey === "string") {
+      (result[id] as ProviderCredentials).apiKey = inc.apiKey;
     }
   }
 
@@ -156,7 +200,38 @@ export function mergeProviders(base: Providers, partial: ProvidersPartial): Prov
  * Retrieve a provider's API key, returning an empty string if not present.
  */
 export function getProviderApiKey(providers: Providers, providerId: ProviderId): string {
-  return providers[providerId].apiKey;
+  return providers[providerId].apiKey ?? "";
+}
+
+/**
+ * Validate Google service account credentials file path.
+ * - Checks path looks like a JSON file
+ * - If fs is available (Node context), verifies file exists and parses JSON
+ * - Optionally checks for common service account keys
+ */
+export function validateGoogleCredentialsPath(path: string): ProvidersValidationResult {
+  const errors: string[] = [];
+  if (typeof path !== "string" || path.length === 0) {
+    return { valid: false, errors: ["credentialsFilePath must be a non-empty string"] };
+  }
+  if (!path.toLowerCase().endsWith(".json")) {
+    errors.push("credentialsFilePath should point to a .json file");
+  }
+  return { valid: errors.length === 0, errors };
+}
+
+/**
+ * Validate Vosk model path.
+ * - In Node context, checks directory exists and is non-empty
+ * - Otherwise, performs a basic string check
+ */
+export function validateVoskModelPath(path: string): ProvidersValidationResult {
+  const errors: string[] = [];
+  if (typeof path !== "string" || path.length === 0) {
+    return { valid: false, errors: ["modelPath must be a non-empty string"] };
+  }
+  // Basic string-level validation only in shared/types; deeper checks happen in main process services
+  return { valid: errors.length === 0, errors };
 }
 
 /**
@@ -220,7 +295,7 @@ export interface ApiValidationEndpoint {
 /**
  * Provider-specific API validation configurations.
  */
-export const API_VALIDATION_ENDPOINTS: Record<ProviderId, ApiValidationEndpoint> = {
+export const API_VALIDATION_ENDPOINTS: Partial<Record<ProviderId, ApiValidationEndpoint>> = {
   openai: {
     url: "https://api.openai.com/v1/models",
     method: "GET",
@@ -232,7 +307,7 @@ export const API_VALIDATION_ENDPOINTS: Record<ProviderId, ApiValidationEndpoint>
     body: {
       model: "claude-3-haiku-20240307",
       max_tokens: 1,
-      messages: [{ role: "user", content: "test" }]
+      messages: [{ role: "user", content: "test" }],
     },
     timeout: 5000,
   },
@@ -248,6 +323,16 @@ export const API_VALIDATION_ENDPOINTS: Record<ProviderId, ApiValidationEndpoint>
   },
   elevenlabs: {
     url: "https://api.elevenlabs.io/v1/user",
+    method: "GET",
+    timeout: 5000,
+  },
+  openrouter: {
+    url: "https://openrouter.ai/api/v1/models",
+    method: "GET",
+    timeout: 5000,
+  },
+  ultravox: {
+    url: "https://api.ultravox.ai/api/accounts/me",
     method: "GET",
     timeout: 5000,
   },

@@ -49,11 +49,11 @@ export const ProvidersPage: React.FC = () => {
         </div>
       )}
 
-      {editingId && (
+      {editingId && editingId !== "google" && editingId !== "vosk" && (
         <div className="mt-4">
           <ProviderForm
             providerId={editingId}
-            apiKey={providers[editingId].apiKey}
+            apiKey={providers[editingId].apiKey ?? ""}
             onChange={(next) => setProviders((p) => ({ ...p, [editingId]: { apiKey: next } }))}
             onSave={async () => {
               const optimistic = providers;
@@ -82,7 +82,7 @@ export const ProvidersPage: React.FC = () => {
                   ok: present,
                   message: present ? "Key present" : "Missing or empty apiKey",
                   validationType: "presence" as const,
-                  errorCode: present ? undefined : ("invalid_key" as const)
+                  errorCode: present ? undefined : ("invalid_key" as const),
                 };
                 showToast(res.message, res.ok ? "success" : "error");
                 return res;
@@ -96,13 +96,127 @@ export const ProvidersPage: React.FC = () => {
                   ok: false,
                   message: "Test failed",
                   validationType: "fallback" as const,
-                  errorCode: "unknown_error" as const
+                  errorCode: "unknown_error" as const,
                 };
                 showToast(res.message, "error");
                 return res;
               }
             }}
           />
+        </div>
+      )}
+
+      {editingId === "google" && (
+        <div className="mt-4 rounded-lg border border-gray-200 p-3">
+          <div className="font-bold">Google Cloud</div>
+          <div className="mt-2 text-sm text-gray-600">
+            Upload a service account JSON. It will be stored inside the app workspace.
+          </div>
+          <div className="mt-3 flex items-center gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-gray-200 bg-slate-50 px-2.5 py-1.5 font-medium hover:bg-slate-100"
+              onClick={async () => {
+                if (!providersApi?.uploadGoogleJson) return;
+                const res = await providersApi.uploadGoogleJson();
+                if (res.storedPath) {
+                  const updated = await providersApi.list();
+                  setProviders(updated.providers);
+                  showToast("Credentials uploaded", "success");
+                } else {
+                  showToast("Upload cancelled or failed", "error");
+                }
+              }}
+            >
+              Upload JSON
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-red-200 bg-red-50 px-2.5 py-1.5 font-medium text-red-800 hover:bg-red-100"
+              onClick={async () => {
+                if (!providersApi?.deleteGoogleJson) return;
+                const res = await providersApi.deleteGoogleJson();
+                if (res.deleted) {
+                  const updated = await providersApi.list();
+                  setProviders(updated.providers);
+                  showToast("Credentials removed", "success");
+                } else {
+                  showToast("Delete failed", "error");
+                }
+              }}
+            >
+              Delete JSON
+            </button>
+            <div className="text-xs text-gray-700">
+              {providers.google.credentialsFilePath && providers.google.credentialsFilePath.length > 0
+                ? providers.google.credentialsFilePath
+                : "No file selected"}
+            </div>
+          </div>
+          <div className="mt-3 flex gap-2">
+            <button
+              type="button"
+              className="rounded-md border border-gray-200 px-2.5 py-1.5"
+              onClick={() => setEditingId(null)}
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
+
+      {editingId === "vosk" && (
+        <div className="mt-4 rounded-lg border border-gray-200 p-3">
+          <div className="font-bold">Vosk</div>
+          <div className="mt-2 text-sm text-gray-600">Set local model directory path.</div>
+          <div className="mt-3 flex items-center gap-2">
+            <input
+              type="text"
+              className="w-full rounded border border-gray-300 px-2 py-1 font-mono text-sm"
+              placeholder="C:\\path\\to\\vosk-model"
+              value={providers.vosk.modelPath ?? ""}
+              onChange={(e) => setProviders((p) => ({ ...p, vosk: { modelPath: e.target.value } }))}
+            />
+            <button
+              type="button"
+              className="rounded-md border border-gray-200 bg-slate-50 px-2.5 py-1.5 font-medium hover:bg-slate-100"
+              onClick={async () => {
+                if (!providersApi?.browseVoskModelDir) return;
+                const res = await providersApi.browseVoskModelDir();
+                if (res.selectedPath) {
+                  setProviders((p) => ({ ...p, vosk: { modelPath: res.selectedPath ?? "" } }));
+                }
+              }}
+            >
+              Browse…
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-gray-200 bg-slate-50 px-2.5 py-1.5 font-medium hover:bg-slate-100"
+              onClick={async () => {
+                if (!providersApi) return;
+                try {
+                  const res = await providersApi.save({
+                    partial: { vosk: { modelPath: providers.vosk.modelPath ?? "" } },
+                  });
+                  setProviders(res.providers);
+                  setEditingId(null);
+                  showToast("Saved", "success");
+                } catch {
+                  showToast("Save failed", "error");
+                }
+              }}
+            >
+              Save
+            </button>
+            <button
+              type="button"
+              className="rounded-md border border-gray-200 px-2.5 py-1.5"
+              onClick={() => setEditingId(null)}
+            >
+              Cancel
+            </button>
+          </div>
         </div>
       )}
 
@@ -118,8 +232,13 @@ export const ProvidersPage: React.FC = () => {
           </thead>
           <tbody>
             {PROVIDER_IDS.map((id) => {
-              const key = providers[id].apiKey;
-              const present = key.trim().length > 0;
+              const row = providers[id] as { apiKey?: string; credentialsFilePath?: string; modelPath?: string };
+              const present =
+                id === "google"
+                  ? typeof row.credentialsFilePath === "string" && row.credentialsFilePath.trim().length > 0
+                  : id === "vosk"
+                    ? typeof row.modelPath === "string" && row.modelPath.trim().length > 0
+                    : typeof row.apiKey === "string" && row.apiKey.trim().length > 0;
               return (
                 <tr
                   key={id}
@@ -141,7 +260,15 @@ export const ProvidersPage: React.FC = () => {
                       {present ? "Configured" : "Missing"}
                     </span>
                   </td>
-                  <td className="px-3 py-2.5 font-mono">{present ? "••••••••" : "—"}</td>
+                  <td className="px-3 py-2.5 font-mono">
+                    {id === "google"
+                      ? row.credentialsFilePath || "—"
+                      : id === "vosk"
+                        ? row.modelPath || "—"
+                        : present
+                          ? "••••••••"
+                          : "—"}
+                  </td>
                   <td className="px-3 py-2.5">
                     <button
                       type="button"

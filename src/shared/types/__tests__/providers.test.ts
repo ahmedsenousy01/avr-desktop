@@ -10,13 +10,21 @@ import {
 } from "../providers";
 
 describe("providers types and utilities", () => {
-  it("createDefaultProviders returns all providers with empty apiKey", () => {
+  it("createDefaultProviders returns expected defaults per provider", () => {
     const defaults = createDefaultProviders();
     const keys = Object.keys(defaults).sort();
     expect(keys).toEqual([...PROVIDER_IDS].sort());
-    for (const id of PROVIDER_IDS) {
-      expect(defaults[id].apiKey).toBe("");
-    }
+    // API-key providers default to empty string
+    expect(defaults.openai.apiKey).toBe("");
+    expect(defaults.anthropic.apiKey).toBe("");
+    expect(defaults.gemini.apiKey).toBe("");
+    expect(defaults.deepgram.apiKey).toBe("");
+    expect(defaults.elevenlabs.apiKey).toBe("");
+    expect(defaults.openrouter.apiKey).toBe("");
+    expect(defaults.ultravox.apiKey).toBe("");
+    // Google and Vosk use non-apiKey fields
+    expect(defaults.google.credentialsFilePath).toBe("");
+    expect(defaults.vosk.modelPath).toBe("");
   });
 
   it("validateProvidersShape accepts partial objects and rejects unknown ids", () => {

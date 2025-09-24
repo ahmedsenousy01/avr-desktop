@@ -73,6 +73,10 @@ const defaults: Providers = {
   gemini: { apiKey: "" },
   deepgram: { apiKey: "" },
   elevenlabs: { apiKey: "" },
+  google: { credentialsFilePath: "" },
+  vosk: { modelPath: "" },
+  openrouter: { apiKey: "" },
+  ultravox: { apiKey: "" },
 };
 
 beforeEach(() => {

@@ -19,6 +19,9 @@ const providers: ProvidersApi = {
   get: (req) => ipcRenderer.invoke(ProvidersChannels.get, req),
   save: (req) => ipcRenderer.invoke(ProvidersChannels.save, req),
   test: (req) => ipcRenderer.invoke(ProvidersChannels.test, req),
+  uploadGoogleJson: () => ipcRenderer.invoke(ProvidersChannels.uploadGoogleJson),
+  deleteGoogleJson: () => ipcRenderer.invoke(ProvidersChannels.deleteGoogleJson),
+  browseVoskModelDir: () => ipcRenderer.invoke(ProvidersChannels.browseVoskModelDir),
 };
 
 contextBridge.exposeInMainWorld("providers", providers);

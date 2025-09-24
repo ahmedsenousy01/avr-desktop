@@ -5,10 +5,7 @@
  * Falls back to presence validation if network requests fail.
  */
 
-import type {
-  ProviderId,
-  ApiValidationResult,
-} from "@shared/types/providers";
+import type { ApiValidationResult, ProviderId } from "@shared/types/providers";
 import { API_VALIDATION_ENDPOINTS } from "@shared/types/providers";
 
 interface HttpResponse {
@@ -81,6 +78,15 @@ async function makeHttpRequest(
  */
 async function validateOpenAIKey(apiKey: string): Promise<ApiValidationResult> {
   const endpoint = API_VALIDATION_ENDPOINTS.openai;
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "OpenAI API validation endpoint is not configured",
+    };
+  }
 
   const response = await makeHttpRequest(endpoint.url, {
     method: endpoint.method,
@@ -142,6 +148,15 @@ async function validateOpenAIKey(apiKey: string): Promise<ApiValidationResult> {
  */
 async function validateAnthropicKey(apiKey: string): Promise<ApiValidationResult> {
   const endpoint = API_VALIDATION_ENDPOINTS.anthropic;
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "Anthropic API validation endpoint is not configured",
+    };
+  }
 
   const response = await makeHttpRequest(endpoint.url, {
     method: endpoint.method,
@@ -205,6 +220,15 @@ async function validateAnthropicKey(apiKey: string): Promise<ApiValidationResult
  */
 async function validateGeminiKey(apiKey: string): Promise<ApiValidationResult> {
   const endpoint = API_VALIDATION_ENDPOINTS.gemini;
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "Gemini API validation endpoint is not configured",
+    };
+  }
   const url = `${endpoint.url}?key=${encodeURIComponent(apiKey)}`;
 
   const response = await makeHttpRequest(url, {
@@ -264,6 +288,16 @@ async function validateGeminiKey(apiKey: string): Promise<ApiValidationResult> {
  */
 async function validateDeepgramKey(apiKey: string): Promise<ApiValidationResult> {
   const endpoint = API_VALIDATION_ENDPOINTS.deepgram;
+
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "Deepgram API validation endpoint is not configured",
+    };
+  }
 
   const response = await makeHttpRequest(endpoint.url, {
     method: endpoint.method,
@@ -326,6 +360,16 @@ async function validateDeepgramKey(apiKey: string): Promise<ApiValidationResult>
 async function validateElevenLabsKey(apiKey: string): Promise<ApiValidationResult> {
   const endpoint = API_VALIDATION_ENDPOINTS.elevenlabs;
 
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "ElevenLabs API validation endpoint is not configured",
+    };
+  }
+
   const response = await makeHttpRequest(endpoint.url, {
     method: endpoint.method,
     headers: {
@@ -382,6 +426,100 @@ async function validateElevenLabsKey(apiKey: string): Promise<ApiValidationResul
 }
 
 /**
+ * Validates Ultravox API key using a simple GET endpoint expecting HTTP 200
+ */
+async function validateUltravoxKey(apiKey: string): Promise<ApiValidationResult> {
+  const endpoint = API_VALIDATION_ENDPOINTS.ultravox;
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "Ultravox API validation endpoint is not configured",
+    };
+  }
+
+  const response = await makeHttpRequest(endpoint.url, {
+    method: endpoint.method,
+    headers: {
+      "X-API-Key": apiKey,
+    },
+    timeout: endpoint.timeout,
+  });
+
+  if (response.status === 200) {
+    return { ok: true, message: "API key is valid", validationType: "api" };
+  }
+
+  if (response.status === 401 || response.status === 403) {
+    return {
+      ok: false,
+      message: "Invalid API key",
+      validationType: "api",
+      errorCode: "unauthorized",
+    };
+  }
+
+  if (response.status === 429) {
+    return { ok: false, message: "Rate limit exceeded", validationType: "api", errorCode: "rate_limited" };
+  }
+
+  if (response.status === 0) {
+    return {
+      ok: false,
+      message: "Network error during validation",
+      validationType: "api",
+      errorCode: response.error?.includes("timeout") ? "timeout" : "network_error",
+      details: response.error,
+    };
+  }
+
+  return { ok: false, message: "API validation failed", validationType: "api", errorCode: "server_error" };
+}
+
+/**
+ * Validates OpenRouter API key using the auth/key endpoint
+ */
+async function validateOpenRouterKey(apiKey: string): Promise<ApiValidationResult> {
+  const endpoint = API_VALIDATION_ENDPOINTS.openrouter;
+  if (!endpoint) {
+    return {
+      ok: false,
+      message: "API validation failed",
+      validationType: "api",
+      errorCode: "server_error",
+      details: "OpenRouter API validation endpoint is not configured",
+    };
+  }
+  const response = await makeHttpRequest(endpoint.url, {
+    method: endpoint.method,
+    headers: { Authorization: `Bearer ${apiKey}` },
+    timeout: endpoint.timeout,
+  });
+
+  if (response.status === 200) {
+    return { ok: true, message: "API key is valid", validationType: "api" };
+  }
+  if (response.status === 401 || response.status === 403) {
+    return { ok: false, message: "Invalid API key", validationType: "api", errorCode: "unauthorized" };
+  }
+  if (response.status === 429) {
+    return { ok: false, message: "Rate limit exceeded", validationType: "api", errorCode: "rate_limited" };
+  }
+  if (response.status === 0) {
+    return {
+      ok: false,
+      message: "Network error during validation",
+      validationType: "api",
+      errorCode: response.error?.includes("timeout") ? "timeout" : "network_error",
+      details: response.error,
+    };
+  }
+  return { ok: false, message: "API validation failed", validationType: "api", errorCode: "server_error" };
+}
+
+/**
  * Fallback validation that only checks for presence
  */
 function validatePresenceOnly(apiKey: string): ApiValidationResult {
@@ -428,6 +566,12 @@ export async function validateApiKey(
         break;
       case "elevenlabs":
         result = await validateElevenLabsKey(apiKey);
+        break;
+      case "openrouter":
+        result = await validateOpenRouterKey(apiKey);
+        break;
+      case "ultravox":
+        result = await validateUltravoxKey(apiKey);
         break;
       default:
         throw new Error(`Unsupported provider: ${providerId}`);

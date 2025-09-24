@@ -14,6 +14,9 @@ export const ProvidersChannels = {
   get: "providers:get",
   save: "providers:save",
   test: "providers:test",
+  uploadGoogleJson: "providers:uploadGoogleJson",
+  deleteGoogleJson: "providers:deleteGoogleJson",
+  browseVoskModelDir: "providers:browseVoskModelDir",
 } as const;
 
 export interface ProvidersListResponse {
@@ -56,6 +59,9 @@ export type ProvidersApi = {
   get: (req: ProvidersGetRequest) => Promise<ProvidersGetResponse>;
   save: (req: ProvidersSaveRequest) => Promise<ProvidersSaveResponse>;
   test: (req: ProvidersTestRequest) => Promise<ProvidersTestResponse>;
+  uploadGoogleJson: () => Promise<{ storedPath: string | null }>;
+  deleteGoogleJson: () => Promise<{ deleted: boolean }>;
+  browseVoskModelDir: () => Promise<{ selectedPath: string | null }>;
 };
 
 // Deployments IPC channels (scaffold for Templates & Composer)
